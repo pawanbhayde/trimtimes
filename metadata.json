@@ -1,0 +1,6 @@
+{
+  "name": "TrimTimes",
+  "description": "An advanced multi-tenant barber appointment booking and business management platform.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
