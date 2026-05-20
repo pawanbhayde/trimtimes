@@ -135,7 +135,21 @@ export default function PlatformLandingPage() {
             </a>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <Link
+              href="/user/login"
+              className="px-4 py-2 text-xs tracking-wider uppercase font-bold text-neutral-300 hover:text-white border border-white/20 hover:border-white/40 transition rounded"
+              id="customer-login-nav-btn"
+            >
+              Customer Login
+            </Link>
+            <Link
+              href="/login"
+              className="px-4 py-2 text-xs tracking-wider uppercase font-bold text-neutral-300 hover:text-white border border-white/20 hover:border-white/40 transition rounded"
+              id="shop-login-nav-btn"
+            >
+              Shop Login
+            </Link>
             <button
               onClick={() => setCreateModalOpen(true)}
               className="px-5 py-2.5 text-xs tracking-wider uppercase font-bold bg-[#d4a574] text-[#1a1a1a] hover:bg-[#8b7355] hover:text-white transition rounded"
@@ -178,6 +192,12 @@ export default function PlatformLandingPage() {
               >
                 Launch Your Shop
               </button>
+              <Link
+                href="/user/signup"
+                className="px-7 py-3.5 text-sm tracking-wider uppercase font-bold border border-white/20 text-white hover:bg-white/5 transition rounded"
+              >
+                Customer Sign Up
+              </Link>
               <a
                 href="#tenants-list"
                 className="px-7 py-3.5 text-sm tracking-wider uppercase font-bold border border-white/20 text-white hover:bg-white/5 transition rounded"
@@ -508,7 +528,7 @@ export default function PlatformLandingPage() {
               </li>
               <li>
                 <Link
-                  href="/grand-classic/barber/dashboard"
+                  href="/shop/grand-classic"
                   className="hover:text-white transition"
                 >
                   Barber Owner
@@ -516,7 +536,7 @@ export default function PlatformLandingPage() {
               </li>
               <li>
                 <Link
-                  href="/grand-classic/customer/dashboard"
+                  href="/user/pawanbhayde721"
                   className="hover:text-white transition"
                 >
                   Customer Profile

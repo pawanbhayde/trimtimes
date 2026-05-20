@@ -29,18 +29,20 @@ export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [showRoleSelector, setShowRoleSelector] = useState(false);
 
-  const tenant = (params?.tenant as string) || 'grand-classic';
+  const tenantId = (params?.tenantId as string) || (params?.tenant as string) || 'grand-classic';
+  const userId = params?.userId as string;
   const user = getCurrentUser();
 
   // Navigation config based on the path / role
   const isSuperAdmin = pathname?.startsWith('/admin');
-  const isBarber = pathname?.includes('/barber');
-  const isCustomer = pathname?.includes('/customer');
+  const isShopRoute = pathname?.startsWith('/shop/');
+  const isUserRoute = pathname?.startsWith('/user/') && !pathname?.startsWith('/user/login') && !pathname?.startsWith('/user/signup');
+  const isBarber = isShopRoute || pathname?.includes('/barber');
+  const isCustomer = isUserRoute || pathname?.includes('/customer');
 
   let navItems = [
-    { label: 'Shop Landing', icon: ShoppingBag, href: `/${tenant}` },
-    { label: 'Booking', icon: PlusSquare, href: `/${tenant}/customer/book` },
-    { label: 'My Bookings', icon: Calendar, href: `/${tenant}/customer/dashboard` },
+    { label: 'My Dashboard', icon: LayoutDashboard, href: userId ? `/user/${userId}` : '/' },
+    { label: 'Book Appointment', icon: PlusSquare, href: '/#tenants-list' },
   ];
 
   if (isSuperAdmin) {
@@ -48,17 +50,28 @@ export default function Sidebar() {
       { label: 'Platform Stats', icon: LayoutDashboard, href: '/admin/dashboard' },
       { label: 'Tenants Directory', icon: Layers, href: '/admin/tenants' },
     ];
+  } else if (isShopRoute) {
+    navItems = [
+      { label: 'Shop Stats', icon: LayoutDashboard, href: `/shop/${tenantId}` },
+      { label: 'Services Catalogue', icon: Scissors, href: `/shop/${tenantId}/services` },
+      { label: 'Appointments Book', icon: Calendar, href: `/shop/${tenantId}/appointments` },
+    ];
   } else if (isBarber) {
     navItems = [
-      { label: 'Shop Stats', icon: LayoutDashboard, href: `/${tenant}/barber/dashboard` },
-      { label: 'Services Catalogue', icon: Scissors, href: `/${tenant}/barber/services` },
-      { label: 'Appointments Book', icon: Calendar, href: `/${tenant}/barber/appointments` },
+      { label: 'Shop Stats', icon: LayoutDashboard, href: `/${tenantId}/barber/dashboard` },
+      { label: 'Services Catalogue', icon: Scissors, href: `/${tenantId}/barber/services` },
+      { label: 'Appointments Book', icon: Calendar, href: `/${tenantId}/barber/appointments` },
+    ];
+  } else if (isUserRoute) {
+    navItems = [
+      { label: 'My Dashboard', icon: LayoutDashboard, href: `/user/${userId}` },
+      { label: 'Book Appointment', icon: PlusSquare, href: '/#tenants-list' },
     ];
   } else if (isCustomer) {
     navItems = [
-      { label: 'Shop Landing', icon: ShoppingBag, href: `/${tenant}` },
-      { label: 'Book Trim', icon: PlusSquare, href: `/${tenant}/customer/book` },
-      { label: 'My Dashboard', icon: LayoutDashboard, href: `/${tenant}/customer/dashboard` },
+      { label: 'Shop Landing', icon: ShoppingBag, href: `/${tenantId}` },
+      { label: 'Book Trim', icon: PlusSquare, href: `/${tenantId}/customer/book` },
+      { label: 'My Dashboard', icon: LayoutDashboard, href: `/${tenantId}/customer/dashboard` },
     ];
   }
 
@@ -69,12 +82,11 @@ export default function Sidebar() {
       role: role
     });
     setShowRoleSelector(false);
-    
-    // Redirect cleanly
+
     if (role === 'customer') {
-      router.push(`/${tenant}/customer/dashboard`);
+      router.push(`/user/pawanbhayde721`);
     } else if (role === 'barber') {
-      router.push(`/${tenant}/barber/dashboard`);
+      router.push(`/shop/${tenantId}`);
     } else {
       router.push(`/admin/dashboard`);
     }
@@ -118,7 +130,7 @@ export default function Sidebar() {
             Active Context
           </div>
           <p className="font-sans font-bold text-white mt-1">
-            {isSuperAdmin ? 'SUPER ADMIN SYSTEM' : isBarber ? 'BARBER MANAGEMENT' : 'CUSTOMER ACCOUNT'}
+            {isSuperAdmin ? 'SUPER ADMIN SYSTEM' : isShopRoute || isBarber ? 'BARBER MANAGEMENT' : 'CUSTOMER ACCOUNT'}
           </p>
           <p className="text-white/40 font-mono text-[9px] mt-0.5 truncate">{user?.email}</p>
         </div>

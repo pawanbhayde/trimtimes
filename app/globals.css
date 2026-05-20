@@ -14,8 +14,8 @@
   --color-beige: #f5f5f4;
 
   --font-sans: var(--font-sans), sans-serif;
-  --font-serif: var(--font-serif), serif;
-  --font-mono: var(--font-mono), monospace;
+  --font-serif: var(--font-sans), sans-serif;
+  --font-mono: var(--font-sans), sans-serif;
 }
 
 @layer base {
@@ -31,7 +31,7 @@
   h4,
   h5,
   h6 {
-    font-family: var(--font-serif);
+    font-family: var(--font-sans);
   }
 }
 
