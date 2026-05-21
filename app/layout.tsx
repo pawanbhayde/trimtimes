@@ -1,6 +1,7 @@
 import type {Metadata} from 'next';
 import { DM_Sans } from 'next/font/google';
 import './globals.css'; // Global styles
+import Providers from './providers';
 
 const dmSans = DM_Sans({
   subsets: ['latin'],
@@ -18,7 +19,7 @@ export default function RootLayout({children}: {children: React.ReactNode}) {
   return (
     <html lang="en" className={dmSans.variable}>
       <body className="bg-[#fafaf9] text-[#1a1a1a] antialiased" suppressHydrationWarning>
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

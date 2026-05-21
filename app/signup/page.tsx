@@ -10,82 +10,82 @@ import {
   Lock,
   ArrowRight,
   ShieldCheck,
-  CheckCircle2,
   Building2,
+  AlertCircle,
 } from 'lucide-react';
-import { getTenants, saveTenants, setCurrentUser, Tenant } from '@/lib/storage';
+import { useAuth } from '@/lib/authStore';
+import { shopRegister } from '@/lib/shopApi';
 
 export default function TenantSignupPage() {
   const router = useRouter();
+  const { setSession } = useAuth();
+
   const [shopName, setShopName] = useState('');
   const [ownerName, setOwnerName] = useState('');
   const [ownerEmail, setOwnerEmail] = useState('');
   const [subdomain, setSubdomain] = useState('');
   const [password, setPassword] = useState('');
-  const [successToast, setSuccessToast] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleSignupSubmit = (e: React.FormEvent) => {
+  const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!shopName || !ownerName || !ownerEmail) return;
+    if (!shopName || !ownerName || !ownerEmail || !password) return;
 
     const slug =
       subdomain.trim().toLowerCase().replace(/\s+/g, '-') ||
       shopName.trim().toLowerCase().replace(/\s+/g, '-');
 
-    const existing = getTenants();
-    const newTenant: Tenant = {
-      id: slug,
-      name: shopName,
-      ownerName,
-      ownerEmail,
-      schemaName: `tenant_${slug.replace(/-/g, '_')}`,
-      status: 'Active',
-      createdDate: new Date().toISOString().split('T')[0],
-      rating: 5.0,
-      phone: '(555) 300-4000',
-      address: '— Address not set —',
-      image: `https://picsum.photos/seed/barber${existing.length + 1}/800/600`,
-    };
+    setError(null);
+    setLoading(true);
 
-    const updated = [...existing, newTenant];
-    saveTenants(updated);
-
-    setCurrentUser({ name: ownerName, email: ownerEmail, role: 'barber' });
-    setSuccessToast(`Shop "${shopName}" provisioned! Redirecting to your dashboard...`);
-
-    setTimeout(() => {
-      setSuccessToast(null);
-      router.push(`/shop/${slug}`);
-    }, 1500);
+    try {
+      const result = await shopRegister({
+        shopName,
+        slug: slug || undefined,
+        ownerName,
+        ownerEmail,
+        password,
+      });
+      setSession(result.accessToken, result.user, result.tenant);
+      document.cookie = 'tt_session=1; path=/; SameSite=Lax';
+      router.push(`/shop/${result.tenant.id}`);
+    } catch (err: any) {
+      const code = err.response?.data?.error?.code;
+      if (code === 'SHOP_EMAIL_EXISTS') setError('An account with this email already exists.');
+      else if (code === 'SHOP_SLUG_EXISTS') setError('This shop URL slug is already taken. Choose another.');
+      else if (code === 'VALIDATION_ERROR') setError(err.response?.data?.error?.message ?? 'Please check your details.');
+      else setError('Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen grid lg:grid-cols-12 bg-[#fafaf9] font-sans" id="tenant-signup-page">
-
-      {successToast && (
-        <div className="fixed top-5 right-5 z-50 max-w-sm bg-[#1a1a1a] text-white border-l-4 border-[#d4a574] p-4 rounded shadow-xl animate-fade-in">
-          <div className="flex items-start gap-2">
-            <CheckCircle2 className="h-4 w-4 text-[#d4a574] shrink-0 mt-0.5" />
-            <p className="text-xs text-zinc-100">{successToast}</p>
-          </div>
-        </div>
-      )}
 
       {/* Left: Form */}
       <div className="lg:col-span-5 flex flex-col justify-between p-8 md:p-12 bg-white border-r border-[#8b7355]/10 shadow-sm relative z-10 w-full max-w-lg mx-auto lg:max-w-none">
         <div className="flex items-center gap-2">
           <Link href="/" className="flex items-center gap-2 py-2" id="signup-logo-link">
             <Scissors className="h-5 w-5 text-[#d4a574]" />
-            <span className="font-serif font-semibold text-lg tracking-wide uppercase text-[#1a1a1a]">TrimTimes</span>
+            <span className="font-semibold text-lg tracking-wide uppercase text-[#1a1a1a]">TrimTimes</span>
           </Link>
         </div>
 
         <div className="space-y-6 my-auto max-w-sm w-full mx-auto py-10">
           <div className="space-y-1">
             <p className="text-[10px] font-mono uppercase tracking-widest text-[#8b7355]">Shop Owner Portal</p>
-            <h2 className="text-3xl font-serif font-black text-[#1a1a1a] uppercase leading-tight">Register Shop</h2>
+            <h2 className="text-3xl font-black text-[#1a1a1a] uppercase leading-tight">Register Shop</h2>
             <p className="text-xs text-neutral-400">Deploy a new isolated barber shop on TrimTimes.</p>
           </div>
+
+          {error && (
+            <div className="flex items-start gap-2 p-3 bg-rose-50 border border-rose-200 rounded text-xs text-rose-700">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+              <span>{error}</span>
+            </div>
+          )}
 
           <form onSubmit={handleSignupSubmit} className="space-y-4 text-xs font-semibold">
             <div>
@@ -180,10 +180,11 @@ export default function TenantSignupPage() {
 
             <button
               type="submit"
-              className="w-full py-3 bg-[#1a1a1a] hover:bg-[#d4a574] hover:text-[#1a1a1a] text-[#fafaf9] transition font-serif font-black uppercase text-xs tracking-widest rounded flex items-center justify-center gap-2 shadow"
+              disabled={loading}
+              className="w-full py-3 bg-[#1a1a1a] hover:bg-[#d4a574] hover:text-[#1a1a1a] text-[#fafaf9] transition font-black uppercase text-xs tracking-widest rounded flex items-center justify-center gap-2 shadow disabled:opacity-60 disabled:cursor-not-allowed"
               id="signup-submit-btn"
             >
-              Launch My Shop <ArrowRight className="h-4 w-4" />
+              {loading ? 'Launching...' : <> Launch My Shop <ArrowRight className="h-4 w-4" /> </>}
             </button>
           </form>
 
@@ -222,7 +223,7 @@ export default function TenantSignupPage() {
             <Scissors className="h-6 w-6 text-[#d4a574]" />
           </div>
           <blockquote className="space-y-4">
-            <p className="font-serif font-light italic text-2xl md:text-3xl text-zinc-100 leading-relaxed">
+            <p className="font-light italic text-2xl md:text-3xl text-zinc-100 leading-relaxed">
               &quot;Deploy your isolated schema in seconds. Manage bookings, services, and clients from one elegant dashboard.&quot;
             </p>
             <footer className="text-xs uppercase tracking-widest font-mono text-[#d4a574] font-black">
@@ -232,15 +233,15 @@ export default function TenantSignupPage() {
 
           <div className="pt-8 flex gap-8 items-center border-t border-white/5 text-[10px] text-zinc-500 font-mono">
             <div>
-              <p className="text-white font-bold font-serif text-sm">3,400 +</p>
+              <p className="text-white font-bold text-sm">3,400 +</p>
               <p className="uppercase mt-0.5">Shops Licensed</p>
             </div>
             <div>
-              <p className="text-white font-bold font-serif text-sm">Free Setup</p>
+              <p className="text-white font-bold text-sm">Free Setup</p>
               <p className="uppercase mt-0.5">No credit card</p>
             </div>
             <div>
-              <p className="text-white font-bold font-serif text-sm">99.9%</p>
+              <p className="text-white font-bold text-sm">99.9%</p>
               <p className="uppercase mt-0.5">Schema Uptime</p>
             </div>
           </div>

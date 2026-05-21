@@ -22,19 +22,18 @@ import StatsCard from '@/components/dashboard/stats-card';
 import {
   getAppointments,
   saveAppointments,
-  getCurrentUser,
   getTenants,
   Appointment,
   Tenant,
-  setCurrentUser,
 } from '@/lib/storage';
+import { useAuth } from '@/lib/authStore';
 
 type BookingStatus = 'Pending' | 'Confirmed' | 'Completed' | 'Cancelled';
 
 export default function UserDashboardPage() {
   const params = useParams();
+  const { user: currentUser } = useAuth();
 
-  const [currentUser, setLocalCurrentUser] = useState<any>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [activeTab, setActiveTab] = useState<'upcoming' | 'history'>('upcoming');
@@ -45,17 +44,13 @@ export default function UserDashboardPage() {
   const [profileName, setProfileName] = useState('');
 
   useEffect(() => {
-    const user = getCurrentUser();
     const apts = getAppointments();
     const shops = getTenants();
-
-    setTimeout(() => {
-      setLocalCurrentUser(user);
-      setProfileName(user.name);
-      setTenants(shops);
-      setAppointments(apts.filter(a => a.customerEmail === user.email));
-    }, 0);
-  }, []);
+    setTenants(shops);
+    if (currentUser?.email) {
+      setAppointments(apts.filter(a => a.customerEmail === currentUser.email));
+    }
+  }, [currentUser]);
 
   const handleCancelAppointment = () => {
     if (!selectedApt) return;
@@ -64,7 +59,7 @@ export default function UserDashboardPage() {
       item.id === selectedApt.id ? { ...item, status: 'Cancelled' as const } : item
     );
     saveAppointments(updatedMaster);
-    setAppointments(updatedMaster.filter(a => a.customerEmail === currentUser.email));
+    setAppointments(updatedMaster.filter(a => a.customerEmail === currentUser?.email));
     setSuccessToast(`Appointment ${selectedApt.id} has been cancelled.`);
     setTimeout(() => setSuccessToast(null), 4000);
     setShowCancelModal(false);
@@ -74,9 +69,6 @@ export default function UserDashboardPage() {
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
     if (!profileName) return;
-    const updated = { ...currentUser, name: profileName };
-    setCurrentUser(updated);
-    setLocalCurrentUser(updated);
     setShowProfileModal(false);
     setSuccessToast('Profile updated successfully.');
     setTimeout(() => setSuccessToast(null), 4000);
@@ -126,7 +118,7 @@ export default function UserDashboardPage() {
 
             <div className="flex flex-wrap gap-3">
               <button
-                onClick={() => setShowProfileModal(true)}
+                onClick={() => { setProfileName(currentUser?.name ?? ''); setShowProfileModal(true); }}
                 className="px-4 py-2 border border-neutral-300 text-[#1a1a1a] font-bold hover:bg-neutral-100 transition rounded text-xs uppercase tracking-wider"
               >
                 Edit Profile

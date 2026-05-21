@@ -3,64 +3,66 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Scissors, Lock, Mail, ArrowRight, ShieldCheck, CheckCircle2 } from 'lucide-react';
-import { setCurrentUser } from '@/lib/storage';
+import { Scissors, Lock, Mail, ArrowRight, ShieldCheck, AlertCircle } from 'lucide-react';
+import { useAuth } from '@/lib/authStore';
+import { userLogin } from '@/lib/userApi';
 
 export default function UserLoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('pawanbhayde721@gmail.com');
+  const { setSession } = useAuth();
+
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [successToast, setSuccessToast] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) return;
+    if (!email || !password) return;
 
-    const nameFromEmail = email.split('@')[0];
-    const userId = nameFromEmail;
+    setError(null);
+    setLoading(true);
 
-    const userObject = {
-      name: nameFromEmail.replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-      email,
-      role: 'customer' as const,
-    };
-
-    setCurrentUser(userObject);
-    setSuccessToast(`Welcome back! Loading your dashboard...`);
-
-    setTimeout(() => {
-      setSuccessToast(null);
-      router.push(`/user/${userId}`);
-    }, 1500);
+    try {
+      const result = await userLogin(email, password);
+      setSession(result.accessToken, result.user, null);
+      document.cookie = 'tt_session=1; path=/; SameSite=Lax';
+      const uid = result.user.email.split('@')[0];
+      router.push(`/user/${uid}`);
+    } catch (err: any) {
+      const code = err.response?.data?.error?.code;
+      if (code === 'INVALID_CREDENTIALS') setError('Incorrect email or password.');
+      else setError('Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen grid lg:grid-cols-12 bg-[#fafaf9] font-sans" id="user-login-page">
-
-      {successToast && (
-        <div className="fixed top-5 right-5 z-50 max-w-sm bg-[#1a1a1a] text-white border-l-4 border-[#d4a574] p-4 rounded shadow-xl animate-fade-in">
-          <div className="flex items-start gap-2">
-            <CheckCircle2 className="h-4 w-4 text-[#d4a574] shrink-0 mt-0.5" />
-            <p className="text-xs text-zinc-100">{successToast}</p>
-          </div>
-        </div>
-      )}
 
       {/* Left: Form */}
       <div className="lg:col-span-5 flex flex-col justify-between p-8 md:p-12 bg-white border-r border-[#8b7355]/10 shadow-sm relative z-10 w-full max-w-lg mx-auto lg:max-w-none">
         <div className="flex items-center gap-2">
           <Link href="/" className="flex items-center gap-2 py-2" id="user-login-logo-link">
             <Scissors className="h-5 w-5 text-[#d4a574]" />
-            <span className="font-serif font-semibold text-lg tracking-wide uppercase text-[#1a1a1a]">TrimTimes</span>
+            <span className="font-semibold text-lg tracking-wide uppercase text-[#1a1a1a]">TrimTimes</span>
           </Link>
         </div>
 
         <div className="space-y-6 my-auto max-w-sm w-full mx-auto py-10">
           <div className="space-y-1">
             <p className="text-[10px] font-mono uppercase tracking-widest text-[#8b7355]">Customer Portal</p>
-            <h2 className="text-3xl font-serif font-black text-[#1a1a1a] uppercase leading-tight">Customer Login</h2>
+            <h2 className="text-3xl font-black text-[#1a1a1a] uppercase leading-tight">Customer Login</h2>
             <p className="text-xs text-neutral-400">Sign in to manage your bookings and appointments.</p>
           </div>
+
+          {error && (
+            <div className="flex items-start gap-2 p-3 bg-rose-50 border border-rose-200 rounded text-xs text-rose-700">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+              <span>{error}</span>
+            </div>
+          )}
 
           <form onSubmit={handleLoginSubmit} className="space-y-4 text-xs font-semibold">
             <div>
@@ -97,22 +99,13 @@ export default function UserLoginPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                defaultChecked
-                className="accent-[#d4a574] h-3.5 w-3.5"
-                id="remember-me"
-              />
-              <label htmlFor="remember-me" className="text-[10px] text-neutral-500 font-bold font-sans">Keep me signed in</label>
-            </div>
-
             <button
               type="submit"
-              className="w-full py-3 bg-[#1a1a1a] hover:bg-[#d4a574] hover:text-[#1a1a1a] text-[#fafaf9] transition font-serif font-black uppercase text-xs tracking-widest rounded flex items-center justify-center gap-2 shadow"
+              disabled={loading}
+              className="w-full py-3 bg-[#1a1a1a] hover:bg-[#d4a574] hover:text-[#1a1a1a] text-[#fafaf9] transition font-black uppercase text-xs tracking-widest rounded flex items-center justify-center gap-2 shadow disabled:opacity-60 disabled:cursor-not-allowed"
               id="user-login-submit-btn"
             >
-              Sign In <ArrowRight className="h-4 w-4" />
+              {loading ? 'Signing in...' : <> Sign In <ArrowRight className="h-4 w-4" /> </>}
             </button>
           </form>
 
@@ -151,7 +144,7 @@ export default function UserLoginPage() {
             <Scissors className="h-6 w-6 text-[#d4a574]" />
           </div>
           <blockquote className="space-y-4">
-            <p className="font-serif font-light italic text-2xl md:text-3xl text-zinc-100 leading-relaxed">
+            <p className="font-light italic text-2xl md:text-3xl text-zinc-100 leading-relaxed">
               &quot;We preserve traditional elegance with modern software. Setting up your profile allows you to book cuts in 3 clicks.&quot;
             </p>
             <footer className="text-xs uppercase tracking-widest font-mono text-[#d4a574] font-black">

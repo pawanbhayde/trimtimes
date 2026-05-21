@@ -11,61 +11,71 @@ import {
   Lock,
   ArrowRight,
   ShieldCheck,
-  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
-import { setCurrentUser } from '@/lib/storage';
+import { useAuth } from '@/lib/authStore';
+import { userRegister } from '@/lib/userApi';
 
 export default function UserSignupPage() {
   const router = useRouter();
+  const { setSession } = useAuth();
+
   const [fullname, setFullname] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
-  const [termsAccepted, setTermsAccepted] = useState(true);
-  const [successToast, setSuccessToast] = useState<string | null>(null);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleSignupSubmit = (e: React.FormEvent) => {
+  const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fullname || !email || !termsAccepted) return;
+    if (!fullname || !email || !phone || !password || !termsAccepted) return;
 
-    const userId = email.split('@')[0];
+    setError(null);
+    setLoading(true);
 
-    setCurrentUser({ name: fullname, email, role: 'customer' });
-    setSuccessToast(`Account created! Redirecting to your dashboard...`);
-
-    setTimeout(() => {
-      setSuccessToast(null);
-      router.push(`/user/${userId}`);
-    }, 1500);
+    try {
+      const result = await userRegister({ fullName: fullname, email, phone, password });
+      setSession(result.accessToken, result.user, null);
+      document.cookie = 'tt_session=1; path=/; SameSite=Lax';
+      const uid = result.user.email.split('@')[0];
+      router.push(`/user/${uid}`);
+    } catch (err: any) {
+      const code = err.response?.data?.error?.code;
+      if (code === 'EMAIL_EXISTS') setError('An account with this email already exists.');
+      else if (code === 'VALIDATION_ERROR') setError(err.response?.data?.error?.message ?? 'Please check your details.');
+      else setError('Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen grid lg:grid-cols-12 bg-[#fafaf9] font-sans" id="user-signup-page">
-
-      {successToast && (
-        <div className="fixed top-5 right-5 z-50 max-w-sm bg-[#1a1a1a] text-white border-l-4 border-[#d4a574] p-4 rounded shadow-xl animate-fade-in">
-          <div className="flex items-start gap-2">
-            <CheckCircle2 className="h-4 w-4 text-[#d4a574] shrink-0 mt-0.5" />
-            <p className="text-xs text-zinc-100">{successToast}</p>
-          </div>
-        </div>
-      )}
 
       {/* Left: Form */}
       <div className="lg:col-span-5 flex flex-col justify-between p-8 md:p-12 bg-white border-r border-[#8b7355]/10 shadow-sm relative z-10 w-full max-w-lg mx-auto lg:max-w-none">
         <div className="flex items-center gap-2">
           <Link href="/" className="flex items-center gap-2 py-2" id="user-signup-logo-link">
             <Scissors className="h-5 w-5 text-[#d4a574]" />
-            <span className="font-serif font-semibold text-lg tracking-wide uppercase text-[#1a1a1a]">TrimTimes</span>
+            <span className="font-semibold text-lg tracking-wide uppercase text-[#1a1a1a]">TrimTimes</span>
           </Link>
         </div>
 
         <div className="space-y-6 my-auto max-w-sm w-full mx-auto py-10">
           <div className="space-y-1">
             <p className="text-[10px] font-mono uppercase tracking-widest text-[#8b7355]">Customer Portal</p>
-            <h2 className="text-3xl font-serif font-black text-[#1a1a1a] uppercase leading-tight">Create Account</h2>
-            <p className="text-xs text-neutral-400 font-sans">Set up your customer profile to start booking appointments.</p>
+            <h2 className="text-3xl font-black text-[#1a1a1a] uppercase leading-tight">Create Account</h2>
+            <p className="text-xs text-neutral-400">Set up your customer profile to start booking appointments.</p>
           </div>
+
+          {error && (
+            <div className="flex items-start gap-2 p-3 bg-rose-50 border border-rose-200 rounded text-xs text-rose-700">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+              <span>{error}</span>
+            </div>
+          )}
 
           <form onSubmit={handleSignupSubmit} className="space-y-4 text-xs font-semibold">
             <div>
@@ -150,17 +160,18 @@ export default function UserSignupPage() {
                 className="accent-[#d4a574] mt-0.5 h-3.5 w-3.5"
                 id="terms"
               />
-              <label htmlFor="terms" className="text-[10px] text-neutral-500 font-bold leading-normal font-sans">
+              <label htmlFor="terms" className="text-[10px] text-neutral-500 font-bold leading-normal">
                 I accept the TrimTimes platform terms of service and privacy policy.
               </label>
             </div>
 
             <button
               type="submit"
-              className="w-full py-3 bg-[#1a1a1a] hover:bg-[#d4a574] hover:text-[#1a1a1a] text-[#fafaf9] transition font-serif font-black uppercase text-xs tracking-widest rounded flex items-center justify-center gap-2 shadow"
+              disabled={loading || !termsAccepted}
+              className="w-full py-3 bg-[#1a1a1a] hover:bg-[#d4a574] hover:text-[#1a1a1a] text-[#fafaf9] transition font-black uppercase text-xs tracking-widest rounded flex items-center justify-center gap-2 shadow disabled:opacity-60 disabled:cursor-not-allowed"
               id="user-signup-submit-btn"
             >
-              Create My Account <ArrowRight className="h-4 w-4" />
+              {loading ? 'Creating account...' : <> Create My Account <ArrowRight className="h-4 w-4" /> </>}
             </button>
           </form>
 
@@ -199,7 +210,7 @@ export default function UserSignupPage() {
             <Scissors className="h-6 w-6 text-[#d4a574]" />
           </div>
           <blockquote className="space-y-4">
-            <p className="font-serif font-light italic text-2xl md:text-3xl text-zinc-100 leading-relaxed">
+            <p className="font-light italic text-2xl md:text-3xl text-zinc-100 leading-relaxed">
               &quot;We preserve traditional elegance with modern software. Setting up your profile allows you to book cuts in 3 clicks.&quot;
             </p>
             <footer className="text-xs uppercase tracking-widest font-mono text-[#d4a574] font-black">

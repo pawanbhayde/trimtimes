@@ -3,74 +3,83 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Scissors, Lock, Mail, ArrowRight, ShieldCheck, CheckCircle2, Store } from 'lucide-react';
-import { setCurrentUser, getTenants, Tenant } from '@/lib/storage';
+import { Scissors, Lock, Mail, ArrowRight, ShieldCheck, Store, AlertCircle } from 'lucide-react';
+import { useAuth } from '@/lib/authStore';
+import { fetchShops, shopLogin } from '@/lib/shopApi';
+import type { ShopListItem } from '@/lib/types';
 
 export default function TenantLoginPage() {
   const router = useRouter();
-  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const { setSession } = useAuth();
+
+  const [shops, setShops] = useState<ShopListItem[]>([]);
   const [selectedTenantId, setSelectedTenantId] = useState('');
-  const [email, setEmail] = useState('charles@grandclassic.com');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [successToast, setSuccessToast] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [shopsLoading, setShopsLoading] = useState(true);
 
   useEffect(() => {
-    const shops = getTenants();
-    setTimeout(() => {
-      setTenants(shops);
-      if (shops.length > 0) setSelectedTenantId(shops[0].id);
-    }, 0);
+    fetchShops()
+      .then((list) => {
+        setShops(list);
+        if (list.length > 0) setSelectedTenantId(list[0].id);
+      })
+      .catch(() => setError('Could not load shops. Please refresh.'))
+      .finally(() => setShopsLoading(false));
   }, []);
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !selectedTenantId) return;
 
-    const selectedShop = tenants.find(t => t.id === selectedTenantId);
-    const userObject = {
-      name: selectedShop?.ownerName || 'Shop Owner',
-      email,
-      role: 'barber' as const,
-    };
+    setError(null);
+    setLoading(true);
 
-    setCurrentUser(userObject);
-    setSuccessToast(`Welcome back! Loading your shop dashboard...`);
-
-    setTimeout(() => {
-      setSuccessToast(null);
-      router.push(`/shop/${selectedTenantId}`);
-    }, 1500);
+    try {
+      const result = await shopLogin(email, password, selectedTenantId);
+      setSession(result.accessToken, result.user, result.tenant);
+      document.cookie = 'tt_session=1; path=/; SameSite=Lax';
+      router.push(`/shop/${result.tenant.id}`);
+    } catch (err: any) {
+      const code = err.response?.data?.error?.code;
+      if (code === 'SHOP_NOT_FOUND') setError('Shop not found. Please check your selection.');
+      else if (code === 'SHOP_INACTIVE') setError('This shop account is currently inactive.');
+      else if (code === 'INVALID_CREDENTIALS') setError('Incorrect email or password.');
+      else setError('Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen grid lg:grid-cols-12 bg-[#fafaf9] font-sans" id="tenant-login-page">
-
-      {successToast && (
-        <div className="fixed top-5 right-5 z-50 max-w-sm bg-[#1a1a1a] text-white border-l-4 border-[#d4a574] p-4 rounded shadow-xl animate-fade-in">
-          <div className="flex items-start gap-2">
-            <CheckCircle2 className="h-4 w-4 text-[#d4a574] shrink-0 mt-0.5" />
-            <p className="text-xs text-zinc-100">{successToast}</p>
-          </div>
-        </div>
-      )}
 
       {/* Left: Form */}
       <div className="lg:col-span-5 flex flex-col justify-between p-8 md:p-12 bg-white border-r border-[#8b7355]/10 shadow-sm relative z-10 w-full max-w-lg mx-auto lg:max-w-none">
         <div className="flex items-center gap-2">
           <Link href="/" className="flex items-center gap-2 py-2" id="login-logo-link">
             <Scissors className="h-5 w-5 text-[#d4a574]" />
-            <span className="font-serif font-semibold text-lg tracking-wide uppercase text-[#1a1a1a]">TrimTimes</span>
+            <span className="font-semibold text-lg tracking-wide uppercase text-[#1a1a1a]">TrimTimes</span>
           </Link>
         </div>
 
         <div className="space-y-6 my-auto max-w-sm w-full mx-auto py-10">
           <div className="space-y-1">
             <p className="text-[10px] font-mono uppercase tracking-widest text-[#8b7355]">Shop Owner Portal</p>
-            <h2 className="text-3xl font-serif font-black text-[#1a1a1a] uppercase leading-tight">Tenant Login</h2>
+            <h2 className="text-3xl font-black text-[#1a1a1a] uppercase leading-tight">Tenant Login</h2>
             <p className="text-xs text-neutral-400">Access your barbershop management dashboard.</p>
           </div>
 
-          <form onSubmit={handleLoginSubmit} className="space-y-4 text-xs font-semibold">
+          {error && (
+            <div className="flex items-start gap-2 p-3 bg-rose-50 border border-rose-200 rounded text-xs text-rose-700">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4 text-xs font-semibold">
             <div>
               <label className="text-[10px] uppercase tracking-widest text-neutral-400 block mb-1">Select Your Shop</label>
               <div className="relative">
@@ -79,13 +88,20 @@ export default function TenantLoginPage() {
                   required
                   value={selectedTenantId}
                   onChange={(e) => setSelectedTenantId(e.target.value)}
-                  className="w-full bg-[#fafaf9] border border-neutral-300 rounded pl-9 pr-3 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#d4a574] font-medium"
+                  disabled={shopsLoading}
+                  className="w-full bg-[#fafaf9] border border-neutral-300 rounded pl-9 pr-3 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#d4a574] font-medium disabled:opacity-50"
                   id="tenant-select"
                 >
-                  <option value="">— Choose your shop —</option>
-                  {tenants.map(t => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
+                  {shopsLoading ? (
+                    <option>Loading shops...</option>
+                  ) : (
+                    <>
+                      <option value="">— Choose your shop —</option>
+                      {shops.map((s) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </>
+                  )}
                 </select>
               </div>
             </div>
@@ -126,10 +142,11 @@ export default function TenantLoginPage() {
 
             <button
               type="submit"
-              className="w-full py-3 bg-[#1a1a1a] hover:bg-[#d4a574] hover:text-[#1a1a1a] text-[#fafaf9] transition font-serif font-black uppercase text-xs tracking-widest rounded flex items-center justify-center gap-2 shadow"
+              disabled={loading || shopsLoading}
+              className="w-full py-3 bg-[#1a1a1a] hover:bg-[#d4a574] hover:text-[#1a1a1a] text-[#fafaf9] transition font-black uppercase text-xs tracking-widest rounded flex items-center justify-center gap-2 shadow disabled:opacity-60 disabled:cursor-not-allowed"
               id="login-submit-btn"
             >
-              Access Shop Dashboard <ArrowRight className="h-4 w-4" />
+              {loading ? 'Signing in...' : <> Access Shop Dashboard <ArrowRight className="h-4 w-4" /> </>}
             </button>
           </form>
 
@@ -168,7 +185,7 @@ export default function TenantLoginPage() {
             <Scissors className="h-6 w-6 text-[#d4a574]" />
           </div>
           <blockquote className="space-y-4">
-            <p className="font-serif font-light italic text-2xl md:text-3xl text-zinc-100 leading-relaxed">
+            <p className="font-light italic text-2xl md:text-3xl text-zinc-100 leading-relaxed">
               &quot;Grooming is not merely about instructions or scissor clippings. It is a sovereign ritual of care, respect, and peerless client courtesy.&quot;
             </p>
             <footer className="text-xs uppercase tracking-widest font-mono text-[#d4a574] font-black">
@@ -177,18 +194,9 @@ export default function TenantLoginPage() {
           </blockquote>
 
           <div className="pt-8 flex gap-8 items-center border-t border-white/5 text-[10px] text-zinc-500 font-mono">
-            <div>
-              <p className="text-white font-bold font-serif text-sm">3,400 +</p>
-              <p className="uppercase mt-0.5">Shops Licensed</p>
-            </div>
-            <div>
-              <p className="text-white font-bold font-serif text-sm">450k +</p>
-              <p className="uppercase mt-0.5">Schedules Completed</p>
-            </div>
-            <div>
-              <p className="text-white font-bold font-serif text-sm">99.9%</p>
-              <p className="uppercase mt-0.5">Schema Uptime</p>
-            </div>
+            <div><p className="text-white font-bold text-sm">3,400 +</p><p className="uppercase mt-0.5">Shops Licensed</p></div>
+            <div><p className="text-white font-bold text-sm">450k +</p><p className="uppercase mt-0.5">Schedules Completed</p></div>
+            <div><p className="text-white font-bold text-sm">99.9%</p><p className="uppercase mt-0.5">Schema Uptime</p></div>
           </div>
         </div>
       </div>

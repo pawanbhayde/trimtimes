@@ -3,35 +3,31 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useParams } from 'next/navigation';
-import { 
-  Scissors, 
-  LayoutDashboard, 
-  Calendar, 
-  PlusSquare, 
-  Settings, 
-  Users, 
-  CheckCircle, 
-  Layers, 
+import {
+  Scissors,
+  LayoutDashboard,
+  Calendar,
+  PlusSquare,
+  Layers,
   LogOut,
-  ChevronLeft, 
+  ChevronLeft,
   ChevronRight,
   Shield,
-  User,
   ShoppingBag
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getCurrentUser, setCurrentUser } from '@/lib/storage';
+import { useAuth } from '@/lib/authStore';
+import { logout } from '@/lib/authApi';
 
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const params = useParams();
   const [collapsed, setCollapsed] = useState(false);
-  const [showRoleSelector, setShowRoleSelector] = useState(false);
 
   const tenantId = (params?.tenantId as string) || (params?.tenant as string) || 'grand-classic';
   const userId = params?.userId as string;
-  const user = getCurrentUser();
+  const { user, clearSession } = useAuth();
 
   // Navigation config based on the path / role
   const isSuperAdmin = pathname?.startsWith('/admin');
@@ -75,20 +71,13 @@ export default function Sidebar() {
     ];
   }
 
-  const handleRoleChange = (role: 'customer' | 'barber' | 'admin') => {
-    setCurrentUser({
-      name: role === 'customer' ? 'Pawan Bhayde' : role === 'barber' ? 'Charles Sterling' : 'Julian Vance',
-      email: role === 'customer' ? 'pawanbhayde721@gmail.com' : role === 'barber' ? 'charles@grandclassic.com' : 'julian@trimtimes.com',
-      role: role
-    });
-    setShowRoleSelector(false);
-
-    if (role === 'customer') {
-      router.push(`/user/pawanbhayde721`);
-    } else if (role === 'barber') {
-      router.push(`/shop/${tenantId}`);
-    } else {
-      router.push(`/admin/dashboard`);
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } finally {
+      clearSession();
+      document.cookie = 'tt_session=; path=/; max-age=0';
+      router.push('/login');
     }
   };
 
@@ -162,56 +151,28 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* Role Switcher Action (Usability Superpower) */}
+      {/* User + Logout */}
       <div className="p-4 border-t border-[#d4a574]/15 bg-black/15">
-        {showRoleSelector && !collapsed && (
-          <div className="mb-3 p-2 bg-[#1a1a1a] rounded-sm border border-[#d4a574]/20 space-y-1 transition duration-200">
-            <p className="text-[9px] text-white/40 uppercase tracking-widest px-2 font-bold">Switch Sandbox Role:</p>
-            <button 
-              onClick={() => handleRoleChange('customer')}
-              className={cn("w-full text-left text-xs px-2 py-1.5 rounded-sm hover:bg-white/5", isCustomer ? "text-[#d4a574] font-bold" : "text-white/60")}
-            >
-              👤 Customer Account
-            </button>
-            <button 
-              onClick={() => handleRoleChange('barber')}
-              className={cn("w-full text-left text-xs px-2 py-1.5 rounded-sm hover:bg-white/5", isBarber ? "text-[#d4a574] font-bold" : "text-white/60")}
-            >
-              💈 Barber Owner
-            </button>
-            <button 
-              onClick={() => handleRoleChange('admin')}
-              className={cn("w-full text-left text-xs px-2 py-1.5 rounded-sm hover:bg-white/5", isSuperAdmin ? "text-[#d4a574] font-bold" : "text-white/60")}
-            >
-              ⚙️ Super Admin
-            </button>
-          </div>
-        )}
-
         <div className="flex items-center justify-between">
-          <button 
-            onClick={() => !collapsed && setShowRoleSelector(!showRoleSelector)}
-            className="flex items-center gap-3 text-left overflow-hidden w-full p-1.5 rounded-sm hover:bg-white/5 transition"
-            id="role-indicator-btn"
-          >
+          <div className="flex items-center gap-3 overflow-hidden flex-1 p-1.5">
             <div className="h-9 w-9 rounded-sm bg-[#d4a574]/15 border border-[#d4a574]/30 flex items-center justify-center text-[#d4a574] shrink-0 font-bold text-xs">
-              {user?.name?.slice(0, 2).toUpperCase()}
+              {user?.name?.slice(0, 2).toUpperCase() ?? '??'}
             </div>
             {!collapsed && (
               <div className="truncate flex-1">
                 <p className="text-xs font-bold text-white truncate leading-tight uppercase tracking-wider">{user?.name}</p>
-                <p className="text-[9px] text-white/40 truncate leading-none mt-1">Sandbox Power Menu</p>
+                <p className="text-[9px] text-white/40 truncate leading-none mt-1">{user?.email}</p>
               </div>
             )}
-          </button>
+          </div>
           {!collapsed && (
-            <Link 
-              href="/"
+            <button
+              onClick={handleLogout}
               className="text-white/40 hover:text-red-400 transition p-1.5 rounded-sm ml-1"
-              title="Return Home"
+              title="Sign Out"
             >
               <LogOut className="h-4 w-4" />
-            </Link>
+            </button>
           )}
         </div>
       </div>
