@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   Scissors,
   Layers,
@@ -10,95 +9,39 @@ import {
   Users,
   Sparkles,
   ArrowRight,
-  Award,
   CheckCircle,
-  ShieldCheck,
-  PlusSquare,
   Clock,
   Star,
+  AlertCircle,
+  RefreshCw,
 } from "lucide-react";
-import { getTenants, Tenant, saveTenants } from "@/lib/storage";
+import { fetchShops } from "@/lib/shopApi";
+import type { ShopListItem } from "@/lib/types";
 
 export default function PlatformLandingPage() {
-  const router = useRouter();
-  const [tenants, setTenants] = useState<Tenant[]>([]);
-  const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [successToast, setSuccessToast] = useState<string | null>(null);
+  const [shops, setShops] = useState<ShopListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
-  // New tenant form state
-  const [shopName, setShopName] = useState("");
-  const [ownerName, setOwnerName] = useState("");
-  const [ownerEmail, setOwnerEmail] = useState("");
-  const [subdomain, setSubdomain] = useState("");
+  const loadShops = () => {
+    setLoading(true);
+    setError(false);
+    fetchShops()
+      .then(setShops)
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
+  };
 
   useEffect(() => {
-    const list = getTenants();
-    setTimeout(() => {
-      setTenants(list);
-    }, 0);
+    loadShops();
   }, []);
-
-  const handleCreateTenant = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!shopName || !ownerName || !ownerEmail) return;
-
-    const slug =
-      subdomain.trim().toLowerCase().replace(/\s+/g, "-") ||
-      shopName.trim().toLowerCase().replace(/\s+/g, "-");
-
-    const newTenant: Tenant = {
-      id: slug,
-      name: shopName,
-      ownerName: ownerName,
-      ownerEmail: ownerEmail,
-      schemaName: `tenant_${slug.replace(/-/g, "_")}`,
-      status: "Active",
-      createdDate: new Date().toISOString().split("T")[0],
-      rating: 5.0,
-      phone: "(555) 300-4000",
-      address: "777 Premier Boulevard Suite 101",
-      image: `https://picsum.photos/seed/barber${tenants.length + 1}/800/600`,
-    };
-
-    const updated = [...tenants, newTenant];
-    setTenants(updated);
-    saveTenants(updated);
-
-    setSuccessToast(
-      `Congratulations! ${shopName} has been initialized successfully under schema ${newTenant.schemaName}!`,
-    );
-    setTimeout(() => setSuccessToast(null), 5000);
-
-    // Reset fields
-    setShopName("");
-    setOwnerName("");
-    setOwnerEmail("");
-    setSubdomain("");
-    setCreateModalOpen(false);
-  };
 
   return (
     <div
       className="min-h-screen bg-[#fafaf9] flex flex-col font-sans"
       id="platform-landing"
     >
-      {/* Toast Alert */}
-      {successToast && (
-        <div
-          className="fixed top-5 right-5 z-50 max-w-md bg-[#1a1a1a] text-white border-l-4 border-[#d4a574] p-4 rounded shadow-xl animate-fade-in"
-          id="toast-success"
-        >
-          <div className="flex items-start gap-3">
-            <CheckCircle className="h-5 w-5 text-[#d4a574] shrink-0 mt-0.5" />
-            <div>
-              <p className="font-serif font-bold text-sm">Tenant Provisioned</p>
-              <p className="text-xs text-neutral-300 mt-1">{successToast}</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Styled Navbar */}
+      {/* Navbar */}
       <nav className="sticky top-0 bg-[#1a1a1a] text-white z-40 border-b border-[#8b7355]/30">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <Link
@@ -129,7 +72,7 @@ export default function PlatformLandingPage() {
             </a>
             <a
               href="#tenants-list"
-              className="text-neutral-300 hover:text-[#d4a574] ... text-[#d4a574] font-semibold border-b border-[#d4a574]/40"
+              className="text-[#d4a574] font-semibold border-b border-[#d4a574]/40"
             >
               Active Shops
             </a>
@@ -150,23 +93,16 @@ export default function PlatformLandingPage() {
             >
               Shop Login
             </Link>
-            <button
-              onClick={() => setCreateModalOpen(true)}
-              className="px-5 py-2.5 text-xs tracking-wider uppercase font-bold bg-[#d4a574] text-[#1a1a1a] hover:bg-[#8b7355] hover:text-white transition rounded"
-              id="start-shop-nav-btn"
-            >
-              Start Your Shop
-            </button>
           </div>
         </div>
       </nav>
 
-      {/* Hero Section */}
+      {/* Hero */}
       <section
         className="bg-[#1a1a1a] text-white pt-16 pb-24 border-b border-[#8b7355]/30 relative overflow-hidden"
         id="platform-hero"
       >
-        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#d4a574_1px,transparent_1px)] [background-size:16px_16px]"></div>
+        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#d4a574_1px,transparent_1px)] [background-size:16px_16px]" />
         <div className="max-w-7xl mx-auto px-6 relative z-10 grid md:grid-cols-12 gap-12 items-center">
           <div className="md:col-span-7 space-y-6">
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/5 border border-amber-500/20 rounded-full text-xs text-[#d4a574]">
@@ -185,18 +121,11 @@ export default function PlatformLandingPage() {
               traditional, luxury, and modern barber clinics.
             </p>
             <div className="flex flex-wrap gap-4 pt-4">
-              <button
-                onClick={() => setCreateModalOpen(true)}
-                className="px-7 py-3.5 text-sm tracking-wider uppercase font-bold bg-[#d4a574] text-[#1a1a1a] hover:bg-white hover:text-[#1a1a1a] transition rounded shadow-lg"
-                id="hero-launch-shop-btn"
-              >
-                Launch Your Shop
-              </button>
               <Link
                 href="/user/signup"
-                className="px-7 py-3.5 text-sm tracking-wider uppercase font-bold border border-white/20 text-white hover:bg-white/5 transition rounded"
+                className="px-7 py-3.5 text-sm tracking-wider uppercase font-bold bg-[#d4a574] text-[#1a1a1a] hover:bg-white transition rounded flex items-center gap-2"
               >
-                Customer Sign Up
+                Customer Sign Up <ArrowRight className="h-4 w-4" />
               </Link>
               <a
                 href="#tenants-list"
@@ -209,7 +138,6 @@ export default function PlatformLandingPage() {
 
           <div className="md:col-span-5 relative">
             <div className="relative border-4 border-[#8b7355]/40 rounded-xl overflow-hidden shadow-2xl bg-[#262626]/80 p-1">
-              {/* Card visualizer */}
               <div className="bg-[#1a1a1a] p-6 rounded-lg text-white space-y-6">
                 <div className="flex items-center justify-between border-b border-white/5 pb-4">
                   <div className="flex items-center gap-2">
@@ -219,10 +147,9 @@ export default function PlatformLandingPage() {
                     </span>
                   </div>
                   <span className="text-[10px] uppercase font-mono tracking-widest text-[#d4a574]">
-                    Licensed Database
+                    Live Database
                   </span>
                 </div>
-
                 <div className="space-y-3">
                   <p className="text-[10px] text-zinc-400 uppercase tracking-wider">
                     Scheduled Today
@@ -254,7 +181,6 @@ export default function PlatformLandingPage() {
                     </span>
                   </div>
                 </div>
-
                 <div className="pt-3 border-t border-white/5 flex items-center justify-between text-xs">
                   <div>
                     <p className="text-xs font-semibold text-white">
@@ -270,18 +196,17 @@ export default function PlatformLandingPage() {
                 </div>
               </div>
             </div>
-            {/* Visual absolute accents */}
             <div className="absolute -bottom-6 -left-6 bg-[#d4a574] text-[#1a1a1a] p-4 rounded-lg hidden lg:block shadow-lg">
               <p className="text-3xl font-serif font-black">99.9%</p>
               <p className="text-[10px] uppercase font-bold tracking-wider">
-                Dynamic Schedule Uptime
+                Schedule Uptime
               </p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Interactive Tenants Directory Section - Key requirement */}
+      {/* Active Shops Directory */}
       <section className="py-20 bg-neutral-100" id="tenants-list">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center space-y-4 max-w-2xl mx-auto mb-16">
@@ -289,101 +214,158 @@ export default function PlatformLandingPage() {
               Licensed Barber Shops
             </h2>
             <p className="text-neutral-500 text-sm leading-relaxed">
-              Below are the active tenants running in our sandbox database.
-              Select any shop to access its public portal, customizable services
-              catalog, and appointment scheduling engine.
+              Active shops running on the TrimTimes platform. Select any shop to
+              access its public portal, services catalog, and appointment
+              engine.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            {tenants.map((ten) => (
-              <div
-                key={ten.id}
-                className="bg-white border border-neutral-200 rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col group"
-                id={`tenant-card-${ten.id}`}
+          {loading && (
+            <div className="flex flex-col items-center justify-center py-24 gap-4">
+              <div className="h-10 w-10 border-2 border-[#d4a574] border-t-transparent rounded-sm animate-spin" />
+              <p className="text-[#8b7355] text-[10px] font-mono tracking-wider uppercase">
+                Fetching shops from database...
+              </p>
+            </div>
+          )}
+
+          {!loading && error && (
+            <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
+              <AlertCircle className="h-10 w-10 text-neutral-300" />
+              <p className="text-neutral-500 text-sm">
+                Could not load shops. Check your connection.
+              </p>
+              <button
+                onClick={loadShops}
+                className="flex items-center gap-2 px-5 py-2.5 bg-[#1a1a1a] text-white hover:bg-[#d4a574] hover:text-[#1a1a1a] font-bold text-xs uppercase tracking-widest rounded-sm transition"
               >
-                {/* Image Placeholder */}
-                <div className="h-48 bg-neutral-900 relative">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={ten.image}
-                    alt={ten.name}
-                    className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-500"
-                  />
-                  <div className="absolute top-4 right-4 bg-white/95 text-xs font-bold px-3 py-1 rounded-full text-neutral-900 flex items-center gap-1 shadow">
-                    <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-                    {ten.rating.toFixed(1)}
-                  </div>
-                  <div className="absolute bottom-4 left-4">
-                    <span className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded bg-[#1a1a1a] text-white border border-amber-500/20">
-                      {ten.schemaName}
-                    </span>
-                  </div>
-                </div>
+                <RefreshCw className="h-3.5 w-3.5" /> Retry
+              </button>
+            </div>
+          )}
 
-                {/* Info block */}
-                <div className="p-6 flex-1 flex flex-col">
-                  <h3 className="text-xl font-serif font-bold text-neutral-900 mb-1">
-                    {ten.name}
-                  </h3>
-                  <p className="text-xs text-neutral-400 font-medium mb-3 flex items-center gap-1">
-                    <Clock className="h-3 w-3" /> Managed by {ten.ownerName}
-                  </p>
+          {!loading && !error && shops.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
+              <Scissors className="h-10 w-10 text-neutral-300" />
+              <p className="text-neutral-500 text-sm">
+                No shops registered yet.
+              </p>
+              <Link
+                href="/signup"
+                className="px-5 py-2.5 bg-[#1a1a1a] text-white hover:bg-[#d4a574] hover:text-[#1a1a1a] font-bold text-xs uppercase tracking-widest rounded-sm transition"
+              >
+                Register a Shop
+              </Link>
+            </div>
+          )}
 
-                  <div className="space-y-1.5 text-xs text-neutral-600 mb-6 flex-1">
-                    <p className="flex justify-between border-b border-neutral-100 pb-1">
-                      <span className="font-semibold text-neutral-400">
-                        Address:
+          {!loading && !error && shops.length > 0 && (
+            <div className="grid md:grid-cols-3 gap-8">
+              {shops.map((shop) => (
+                <div
+                  key={shop.id}
+                  className="bg-white border border-neutral-200 rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col group"
+                  id={`tenant-card-${shop.slug}`}
+                >
+                  {/* Banner image */}
+                  <div className="h-48 bg-neutral-900 relative overflow-hidden">
+                    {shop.bannerUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={shop.bannerUrl}
+                        alt={shop.name}
+                        className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-500"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Scissors className="h-12 w-12 text-neutral-700" />
+                      </div>
+                    )}
+                    <div className="absolute top-4 right-4 bg-white/95 text-xs font-bold px-3 py-1 rounded-full text-neutral-900 flex items-center gap-1 shadow">
+                      <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                      {shop.rating != null ? shop.rating.toFixed(1) : "—"}
+                      {(shop.reviewCount ?? 0) > 0 && (
+                        <span className="text-neutral-400 font-normal ml-0.5">
+                          ({shop.reviewCount})
+                        </span>
+                      )}
+                    </div>
+                    <div className="absolute bottom-4 left-4">
+                      <span className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded bg-[#1a1a1a] text-white border border-amber-500/20">
+                        {shop.schemaName}
                       </span>
-                      <span className="truncate max-w-[200px] text-neutral-900 font-medium">
-                        {ten.address}
-                      </span>
+                    </div>
+                  </div>
+
+                  {/* Info */}
+                  <div className="p-6 flex-1 flex flex-col">
+                    <h3 className="text-xl font-serif font-bold text-neutral-900 mb-1">
+                      {shop.name}
+                    </h3>
+                    <p className="text-xs text-neutral-400 font-medium mb-3 flex items-center gap-1">
+                      <Clock className="h-3 w-3" /> Managed by {shop.ownerName}
                     </p>
-                    <p className="flex justify-between border-b border-neutral-100 pb-1">
-                      <span className="font-semibold text-neutral-400">
-                        Database Status:
-                      </span>
-                      <span
-                        className={`font-bold uppercase tracking-wider text-[10px] ${ten.status === "Active" ? "text-emerald-600" : "text-neutral-400"}`}
+
+                    <div className="space-y-1.5 text-xs text-neutral-600 mb-6 flex-1">
+                      {shop.phone && (
+                        <p className="flex justify-between border-b border-neutral-100 pb-1">
+                          <span className="font-semibold text-neutral-400">
+                            Contact:
+                          </span>
+                          <span className="text-neutral-900 font-serif">
+                            {shop.phone}
+                          </span>
+                        </p>
+                      )}
+                      <p className="flex justify-between border-b border-neutral-100 pb-1">
+                        <span className="font-semibold text-neutral-400">
+                          Database:
+                        </span>
+                        <span
+                          className={`font-bold uppercase tracking-wider text-[10px] ${
+                            shop.status === "Active"
+                              ? "text-emerald-600"
+                              : "text-neutral-400"
+                          }`}
+                        >
+                          {shop.status}
+                        </span>
+                      </p>
+                      <p className="flex justify-between pb-1">
+                        <span className="font-semibold text-neutral-400">
+                          Reviews:
+                        </span>
+                        <span className="text-neutral-900 font-mono">
+                          {shop.reviewCount ?? 0} total
+                        </span>
+                      </p>
+                    </div>
+
+                    <div className="space-y-2 pt-2 border-t border-neutral-100">
+                      <Link
+                        href={`/${shop.slug}`}
+                        className="w-full text-center block bg-[#1a1a1a] text-white hover:bg-[#d4a574] hover:text-[#1a1a1a] font-bold py-2 px-4 rounded text-xs uppercase tracking-wider transition"
+                        id={`visit-btn-${shop.id}`}
                       >
-                        {ten.status}
-                      </span>
-                    </p>
-                    <p className="flex justify-between pb-1">
-                      <span className="font-semibold text-neutral-400">
-                        Contact:
-                      </span>
-                      <span className="text-neutral-900 font-serif">
-                        {ten.phone}
-                      </span>
-                    </p>
-                  </div>
-
-                  {/* Actions mapping the requested layouts */}
-                  <div className="space-y-2 pt-2 border-t border-neutral-100">
-                    <Link
-                      href={`/${ten.id}`}
-                      className="w-full text-center block bg-[#1a1a1a] text-white hover:bg-[#d4a574] hover:text-[#1a1a1a] font-bold py-2 px-4 rounded text-xs uppercase tracking-wider transition"
-                      id={`visit-btn-${ten.id}`}
-                    >
-                      Visit Shop
-                    </Link>
+                        Visit Shop
+                      </Link>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
-      {/* Capability Grid Segment */}
+      {/* Features */}
       <section className="py-20 bg-white" id="features">
         <div className="max-w-7xl mx-auto px-6">
           <div className="max-w-2xl mx-auto text-center mb-16 space-y-4">
             <h2 className="text-3xl md:text-4xl font-serif font-bold text-neutral-900">
               Forged for Craft Barbering
             </h2>
-            <div className="h-0.5 w-16 bg-[#d4a574] mx-auto"></div>
+            <div className="h-0.5 w-16 bg-[#d4a574] mx-auto" />
             <p className="text-neutral-500 text-sm">
               Discover built-in multi-tenant isolation modules designed around
               schedules, customer records, and secure catalogs.
@@ -391,62 +373,48 @@ export default function PlatformLandingPage() {
           </div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
-            <div className="p-6 bg-neutral-50 rounded-xl space-y-3 border border-neutral-100">
-              <div className="p-2.5 bg-[#d4a574]/10 rounded-lg text-[#8b7355] w-fit">
-                <Layers className="h-5 w-5" />
+            {[
+              {
+                icon: Layers,
+                title: "Multi-Tenant Isolation",
+                body: "Complete separation of customer profiles, booking logs, and schedules per tenant shop. Secure, scalable schema isolation.",
+              },
+              {
+                icon: Calendar,
+                title: "Real-Time Booking",
+                body: "Step-by-step barber appointment system with live availability calendars, time slots, and smart status flows.",
+              },
+              {
+                icon: Scissors,
+                title: "Service Portfolios",
+                body: "Barbers have absolute liberty to set custom prices, session durations, descriptions, and toggle active states live.",
+              },
+              {
+                icon: Users,
+                title: "Customer Metrics",
+                body: "Advanced CRM allowing barber teams to track guest preferences, historic schedules, and contact metrics easily.",
+              },
+            ].map((f) => (
+              <div
+                key={f.title}
+                className="p-6 bg-neutral-50 rounded-xl space-y-3 border border-neutral-100"
+              >
+                <div className="p-2.5 bg-[#d4a574]/10 rounded-lg text-[#8b7355] w-fit">
+                  <f.icon className="h-5 w-5" />
+                </div>
+                <h3 className="font-serif font-bold text-lg text-neutral-900">
+                  {f.title}
+                </h3>
+                <p className="text-xs text-neutral-500 leading-relaxed">
+                  {f.body}
+                </p>
               </div>
-              <h3 className="font-serif font-bold text-lg text-neutral-900">
-                Multi-Tenant Isolation
-              </h3>
-              <p className="text-xs text-neutral-500 leading-relaxed">
-                Complete separation of customer profiles, booking logs, and
-                schedules per tenant shop. Secure, scalable schema isolation.
-              </p>
-            </div>
-
-            <div className="p-6 bg-neutral-50 rounded-xl space-y-3 border border-neutral-100">
-              <div className="p-2.5 bg-[#d4a574]/10 rounded-lg text-[#8b7355] w-fit">
-                <Calendar className="h-5 w-5" />
-              </div>
-              <h3 className="font-serif font-bold text-lg text-neutral-900">
-                Real-Time Booking
-              </h3>
-              <p className="text-xs text-neutral-500 leading-relaxed">
-                Step-by-step barber appointment system with live availability
-                calendars, time slots, and smart status flows.
-              </p>
-            </div>
-
-            <div className="p-6 bg-neutral-50 rounded-xl space-y-3 border border-neutral-100">
-              <div className="p-2.5 bg-[#d4a574]/10 rounded-lg text-[#8b7355] w-fit">
-                <Scissors className="h-5 w-5" />
-              </div>
-              <h3 className="font-serif font-bold text-lg text-neutral-900">
-                Service Portfolios
-              </h3>
-              <p className="text-xs text-neutral-500 leading-relaxed">
-                Barbers have absolute liberty to set custom prices, session
-                durations, descriptions, and toggle active states live.
-              </p>
-            </div>
-
-            <div className="p-6 bg-neutral-50 rounded-xl space-y-3 border border-neutral-100">
-              <div className="p-2.5 bg-[#d4a574]/10 rounded-lg text-[#8b7355] w-fit">
-                <Users className="h-5 w-5" />
-              </div>
-              <h3 className="font-serif font-bold text-lg text-neutral-900">
-                Customer Metrics
-              </h3>
-              <p className="text-xs text-neutral-500 leading-relaxed">
-                Advanced CRM allowing barber teams to track guest preferences,
-                historic schedules, and contact metrics easily.
-              </p>
-            </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* How It Works Segment */}
+      {/* How it works */}
       <section className="py-20 bg-neutral-50" id="how-it-works">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16 space-y-4">
@@ -460,47 +428,40 @@ export default function PlatformLandingPage() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-10">
-            <div className="space-y-4 text-center">
-              <div className="h-10 w-10 text-[#d4a574] bg-[#d4a574]/10 rounded-full font-serif font-bold text-lg flex items-center justify-center mx-auto border border-[#d4a574]/30">
-                1
+            {[
+              {
+                n: "1",
+                title: "Select a Barber Shop",
+                body: "Explore any of our stylized, modern boutique directories listed in the licensed registry panel above.",
+              },
+              {
+                n: "2",
+                title: "Choose Service & Time",
+                body: "Select options from an active services grid and pick an available date and time slot with custom barbers.",
+              },
+              {
+                n: "3",
+                title: "Manage & Relax",
+                body: "Track scheduled cuts instantly via customer sideboards or update statuses in real-time in the barber dashboard.",
+              },
+            ].map((step) => (
+              <div key={step.n} className="space-y-4 text-center">
+                <div className="h-10 w-10 text-[#d4a574] bg-[#d4a574]/10 rounded-full font-serif font-bold text-lg flex items-center justify-center mx-auto border border-[#d4a574]/30">
+                  {step.n}
+                </div>
+                <h3 className="font-serif font-bold text-[#1a1a1a] text-lg">
+                  {step.title}
+                </h3>
+                <p className="text-xs text-neutral-500 max-w-xs mx-auto leading-relaxed">
+                  {step.body}
+                </p>
               </div>
-              <h3 className="font-serif font-bold text-[#1a1a1a] text-lg">
-                Select a Barber Shop
-              </h3>
-              <p className="text-xs text-neutral-500 max-w-xs mx-auto leading-relaxed">
-                Explore any of our stylized, modern boutique directories listed
-                in the licensed registry panel above.
-              </p>
-            </div>
-            <div className="space-y-4 text-center">
-              <div className="h-10 w-10 text-[#d4a574] bg-[#d4a574]/10 rounded-full font-serif font-bold text-lg flex items-center justify-center mx-auto border border-[#d4a574]/30">
-                2
-              </div>
-              <h3 className="font-serif font-bold text-[#1a1a1a] text-lg">
-                Choose Service & Time
-              </h3>
-              <p className="text-xs text-[#555555] max-w-xs mx-auto leading-relaxed">
-                Select options from an active services grid and pick an
-                available date and time slot with custom barbers.
-              </p>
-            </div>
-            <div className="space-y-4 text-center">
-              <div className="h-10 w-10 text-[#d4a574] bg-[#d4a574]/10 rounded-full font-serif font-bold text-lg flex items-center justify-center mx-auto border border-[#d4a574]/30">
-                3
-              </div>
-              <h3 className="font-serif font-bold text-[#1a1a1a] text-lg">
-                Manage & Relax
-              </h3>
-              <p className="text-xs text-neutral-500 max-w-xs mx-auto leading-relaxed">
-                Track scheduled cuts instantly via customer sideboards or update
-                statuses in real-time in the barber dashboard.
-              </p>
-            </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Styled Footer */}
+      {/* Footer */}
       <footer className="mt-auto bg-[#1a1a1a] text-white py-12 border-t border-[#8b7355]/30">
         <div className="max-w-7xl mx-auto px-6 grid md:grid-cols-4 gap-8">
           <div className="space-y-3">
@@ -527,44 +488,38 @@ export default function PlatformLandingPage() {
                 </Link>
               </li>
               <li>
-                <Link
-                  href="/shop/grand-classic"
-                  className="hover:text-white transition"
-                >
-                  Barber Owner
+                <Link href="/login" className="hover:text-white transition">
+                  Shop Login
                 </Link>
               </li>
               <li>
                 <Link
-                  href="/user/pawanbhayde721"
+                  href="/user/login"
                   className="hover:text-white transition"
                 >
-                  Customer Profile
+                  Customer Login
                 </Link>
               </li>
             </ul>
           </div>
           <div>
             <p className="font-serif font-bold text-xs uppercase tracking-wider text-[#d4a574] mb-3">
-              Live Tenants
+              Live Shops
             </p>
             <ul className="text-xs text-neutral-400 space-y-2">
-              <li>
-                <Link
-                  href="/grand-classic"
-                  className="hover:text-white transition"
-                >
-                  Grand Classic Barber
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/vintage-clipper"
-                  className="hover:text-white transition"
-                >
-                  The Vintage Clipper
-                </Link>
-              </li>
+              {shops.slice(0, 4).map((s) => (
+                <li key={s.id}>
+                  <Link
+                    href={`/${s.slug}`}
+                    className="hover:text-white transition"
+                  >
+                    {s.name}
+                  </Link>
+                </li>
+              ))}
+              {shops.length === 0 && !loading && (
+                <li className="text-neutral-600 italic">No shops yet</li>
+              )}
             </ul>
           </div>
           <div>
@@ -583,108 +538,6 @@ export default function PlatformLandingPage() {
           Tailwind CSS. All rights reserved.
         </div>
       </footer>
-
-      {/* Start Your Shop - Popover Modal */}
-      {createModalOpen && (
-        <div
-          className="fixed inset-0 bg-[#1a1a1a]/85 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
-          id="create-tenant-modal"
-        >
-          <div className="bg-white border border-[#8b7355]/30 rounded-xl max-w-md w-full overflow-hidden shadow-2xl animate-fade-in text-[#1a1a1a]">
-            <div className="bg-[#1a1a1a] text-white p-6 border-b border-[#8b7355]/30">
-              <h3 className="font-serif font-bold text-xl text-white">
-                Initialize New Barber Tenant
-              </h3>
-              <p className="text-xs text-neutral-400 mt-1">
-                Deploy a brand new isolated shop database instantly.
-              </p>
-            </div>
-
-            <form onSubmit={handleCreateTenant} className="p-6 space-y-4">
-              <div>
-                <label className="text-xs font-bold uppercase text-neutral-500 block mb-1">
-                  Shop Name <span className="text-amber-600">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Royal Blades"
-                  value={shopName}
-                  onChange={(e) => setShopName(e.target.value)}
-                  className="w-full border border-neutral-300 rounded p-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#d4a574]"
-                  id="tenant-shopname-input"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold uppercase text-neutral-500 block mb-1">
-                  Subdomain Slug / Slug ID
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. royal-blades"
-                  value={subdomain}
-                  onChange={(e) => setSubdomain(e.target.value)}
-                  className="w-full border border-neutral-300 rounded p-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#d4a574]"
-                  id="tenant-slug-input"
-                />
-                <p className="text-[10px] text-neutral-400 mt-1">
-                  Leave blank to auto-generate from shop name.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-bold uppercase text-neutral-500 block mb-1">
-                    Owner Full Name <span className="text-amber-600">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Julian Vance"
-                    value={ownerName}
-                    onChange={(e) => setOwnerName(e.target.value)}
-                    className="w-full border border-neutral-300 rounded p-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#d4a574]"
-                    id="tenant-owner-input"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold uppercase text-neutral-500 block mb-1">
-                    Owner Email <span className="text-amber-600">*</span>
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="owner@shop.com"
-                    value={ownerEmail}
-                    onChange={(e) => setOwnerEmail(e.target.value)}
-                    className="w-full border border-neutral-300 rounded p-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#d4a574]"
-                    id="tenant-email-input"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-neutral-100 flex items-center justify-end gap-3 text-xs font-bold">
-                <button
-                  type="button"
-                  onClick={() => setCreateModalOpen(false)}
-                  className="px-4 py-2 text-neutral-600 hover:text-black uppercase tracking-wider"
-                  id="cancel-provision-btn"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 bg-[#1a1a1a] text-white hover:bg-[#d4a574] hover:text-[#1a1a1a] uppercase tracking-wider rounded"
-                  id="submit-provision-btn"
-                >
-                  Provision Schema
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

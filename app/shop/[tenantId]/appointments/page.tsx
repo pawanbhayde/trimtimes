@@ -15,81 +15,77 @@ import {
 } from 'lucide-react';
 import Sidebar from '@/components/dashboard/sidebar';
 import Topbar from '@/components/dashboard/topbar';
-import { getAppointments, saveAppointments, Appointment, getTenants, Tenant } from '@/lib/storage';
+import {
+  fetchShopAppointments,
+  updateShopAppointmentStatus,
+  type ShopAppointment,
+} from '@/lib/shopManagementApi';
 
-type StatusType = 'All' | 'Pending' | 'Confirmed' | 'Completed' | 'Cancelled';
+type StatusType = 'All' | 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED';
 
 export default function ShopAppointmentsPage() {
   const params = useParams();
-  const tenantId = (params?.tenantId as string) || 'grand-classic';
+  const tenantId = (params?.tenantId as string) || '';
 
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [currentShop, setCurrentShop] = useState<Tenant | null>(null);
+  const [appointments, setAppointments] = useState<ShopAppointment[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<StatusType>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState('');
-  const [selectedApt, setSelectedApt] = useState<Appointment | null>(null);
+  const [selectedApt, setSelectedApt] = useState<ShopAppointment | null>(null);
   const [notesDraft, setNotesDraft] = useState('');
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
   useEffect(() => {
-    const shops = getTenants();
-    const current = shops.find(s => s.id === tenantId);
-    const shopApts = getAppointments(tenantId);
-    setTimeout(() => {
-      if (current) setCurrentShop(current);
-      setAppointments(shopApts);
-    }, 0);
+    setLoading(true);
+    fetchShopAppointments()
+      .then(setAppointments)
+      .catch(() => setAppointments([]))
+      .finally(() => setLoading(false));
   }, [tenantId]);
 
-  const handleOpenSheet = (apt: Appointment) => {
+  const showToast = (msg: string) => {
+    setSuccessToast(msg);
+    setTimeout(() => setSuccessToast(null), 3500);
+  };
+
+  const handleOpenSheet = (apt: ShopAppointment) => {
     setSelectedApt(apt);
     setNotesDraft(apt.notes || '');
   };
 
-  const handleUpdateStatus = (newStatus: 'Pending' | 'Confirmed' | 'Completed' | 'Cancelled') => {
+  const handleUpdateStatus = async (newStatus: ShopAppointment['status']) => {
     if (!selectedApt) return;
-    const masterApts = getAppointments();
-    const updatedMaster = masterApts.map(item =>
-      item.id === selectedApt.id ? { ...item, status: newStatus, notes: notesDraft } : item
-    );
-    saveAppointments(updatedMaster);
-    const updatedShopList = updatedMaster.filter(a => a.tenantId === tenantId);
-    setAppointments(updatedShopList);
-    const nextItem = updatedShopList.find(a => a.id === selectedApt.id);
-    if (nextItem) setSelectedApt(nextItem);
-    setSuccessToast(`Record #${selectedApt.id} status is now "${newStatus}".`);
-    setTimeout(() => setSuccessToast(null), 3500);
-  };
-
-  const handleSaveNotes = () => {
-    if (!selectedApt) return;
-    const masterApts = getAppointments();
-    const updatedMaster = masterApts.map(item =>
-      item.id === selectedApt.id ? { ...item, notes: notesDraft } : item
-    );
-    saveAppointments(updatedMaster);
-    setAppointments(updatedMaster.filter(a => a.tenantId === tenantId));
-    setSuccessToast(`Notes committed for ${selectedApt.customerName}.`);
-    setTimeout(() => setSuccessToast(null), 3000);
+    try {
+      const updated = await updateShopAppointmentStatus(selectedApt.id, newStatus);
+      setAppointments(prev => prev.map(a => a.id === selectedApt.id ? updated : a));
+      setSelectedApt(updated);
+      showToast(`Record #${selectedApt.id.slice(0, 8)} status is now "${newStatus}".`);
+    } catch {
+      showToast('Failed to update status.');
+    }
   };
 
   const filteredAppointments = appointments.filter(apt => {
-    const matchesSearch = apt.customerName.toLowerCase().includes(searchQuery.toLowerCase()) || apt.id.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesDate = dateFilter ? apt.date === dateFilter : true;
+    const matchesSearch =
+      apt.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      apt.id.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesDate = dateFilter ? apt.appointmentDate === dateFilter : true;
     const matchesTab = activeTab === 'All' ? true : apt.status === activeTab;
     return matchesSearch && matchesDate && matchesTab;
   });
 
   const getStatusStyle = (status: string) => {
     switch (status) {
-      case 'Confirmed': return 'bg-emerald-50 text-emerald-700 border-emerald-100';
-      case 'Pending': return 'bg-amber-50 text-amber-700 border-amber-100';
-      case 'Completed': return 'bg-neutral-100 text-neutral-600 border-neutral-100';
-      case 'Cancelled': return 'bg-rose-50 text-rose-700 border-rose-100';
+      case 'CONFIRMED': return 'bg-emerald-50 text-emerald-700 border-emerald-100';
+      case 'PENDING': return 'bg-amber-50 text-amber-700 border-amber-100';
+      case 'COMPLETED': return 'bg-neutral-100 text-neutral-600 border-neutral-100';
+      case 'CANCELLED': return 'bg-rose-50 text-rose-700 border-rose-100';
       default: return 'bg-neutral-50 text-neutral-400';
     }
   };
+
+  const STATUS_TABS: StatusType[] = ['All', 'PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED'];
 
   return (
     <div className="flex h-screen bg-[#fafaf9] overflow-hidden font-sans" id="shop-appointments-page">
@@ -109,17 +105,25 @@ export default function ShopAppointmentsPage() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-neutral-200 pb-6">
             <div>
               <p className="text-xs uppercase font-mono tracking-widest text-[#8b7355]">Reservations Log</p>
-              <h2 className="text-3xl font-serif font-black text-neutral-900 mt-1">💈 Booking Ledger</h2>
+              <h2 className="text-3xl font-serif font-black text-neutral-900 mt-1">Booking Ledger</h2>
               <p className="text-xs text-neutral-500 mt-1">Review guest queues, search profiles, and modify timeslot status logs.</p>
             </div>
           </div>
 
           <div className="space-y-6">
             <div className="flex border-b border-neutral-250 overflow-x-auto pb-px" id="appointments-status-tabs">
-              {(['All', 'Pending', 'Confirmed', 'Completed', 'Cancelled'] as StatusType[]).map((tab) => {
+              {STATUS_TABS.map((tab) => {
                 const count = tab === 'All' ? appointments.length : appointments.filter(a => a.status === tab).length;
                 return (
-                  <button key={tab} onClick={() => setActiveTab(tab)} className={`py-3 px-5 text-xs font-bold uppercase tracking-widest transition border-b-2 whitespace-nowrap ${activeTab === tab ? 'border-[#d4a574] text-neutral-950 font-black' : 'border-transparent text-neutral-400 hover:text-neutral-900'}`}>
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`py-3 px-5 text-xs font-bold uppercase tracking-widest transition border-b-2 whitespace-nowrap ${
+                      activeTab === tab
+                        ? 'border-[#d4a574] text-neutral-950 font-black'
+                        : 'border-transparent text-neutral-400 hover:text-neutral-900'
+                    }`}
+                  >
                     {tab} ({count})
                   </button>
                 );
@@ -129,17 +133,35 @@ export default function ShopAppointmentsPage() {
             <div className="bg-white rounded-xl border border-neutral-200 p-4 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
               <div className="relative w-full md:max-w-md">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
-                <input type="text" placeholder="Search guests by name or Ref Code..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-[#fafaf9] border border-neutral-200 rounded pl-9 pr-4 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a574] font-medium" />
+                <input
+                  type="text"
+                  placeholder="Search guests by name or Ref Code..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="w-full bg-[#fafaf9] border border-neutral-200 rounded pl-9 pr-4 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a574] font-medium"
+                />
               </div>
               <div className="flex items-center gap-3 w-full md:w-auto">
                 <Filter className="h-4 w-4 text-neutral-400 shrink-0 hidden sm:block" />
-                <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="bg-[#fafaf9] border border-neutral-200 rounded px-3 py-2 text-xs text-neutral-700 font-medium focus:outline-none font-mono w-full sm:w-auto" />
-                {dateFilter && <button onClick={() => setDateFilter('')} className="text-xs text-[#8b7355] hover:underline shrink-0">Reset</button>}
+                <input
+                  type="date"
+                  value={dateFilter}
+                  onChange={e => setDateFilter(e.target.value)}
+                  className="bg-[#fafaf9] border border-neutral-200 rounded px-3 py-2 text-xs text-neutral-700 font-medium focus:outline-none font-mono w-full sm:w-auto"
+                />
+                {dateFilter && (
+                  <button onClick={() => setDateFilter('')} className="text-xs text-[#8b7355] hover:underline shrink-0">Reset</button>
+                )}
               </div>
             </div>
 
             <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden shadow-sm">
-              {filteredAppointments.length === 0 ? (
+              {loading ? (
+                <div className="text-center py-16 space-y-3">
+                  <div className="h-6 w-6 border-2 border-[#d4a574] border-t-transparent rounded-sm animate-spin mx-auto" />
+                  <p className="text-xs text-neutral-400">Loading appointments...</p>
+                </div>
+              ) : filteredAppointments.length === 0 ? (
                 <div className="text-center py-16 space-y-3">
                   <Calendar className="h-10 w-10 text-neutral-300 mx-auto" />
                   <p className="text-xs text-neutral-400">No appointments match the current filters.</p>
@@ -153,30 +175,43 @@ export default function ShopAppointmentsPage() {
                         <th className="p-4">Customer</th>
                         <th className="p-4">Treatment</th>
                         <th className="p-4">Scheduled</th>
-                        <th className="p-4">Barber</th>
+                        <th className="p-4">Artisan</th>
                         <th className="p-4">Price</th>
                         <th className="p-4">Status</th>
                         <th className="p-4 text-right">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-neutral-100 font-medium">
-                      {filteredAppointments.map((apt) => (
+                      {filteredAppointments.map(apt => (
                         <tr key={apt.id} className="hover:bg-neutral-50/50" id={`apt-row-${apt.id}`}>
-                          <td className="p-4 font-mono font-bold text-neutral-900">#{apt.id}</td>
+                          <td className="p-4 font-mono font-bold text-neutral-900">#{apt.id.slice(0, 8)}</td>
                           <td className="p-4">
                             <p className="font-serif font-bold text-neutral-950 text-sm leading-tight uppercase">{apt.customerName}</p>
                             <span className="text-[10px] text-neutral-400 font-mono block mt-0.5">{apt.customerPhone}</span>
                           </td>
-                          <td className="p-4"><span className="bg-neutral-100 px-2.5 py-1 rounded text-[10px] font-bold text-neutral-700">{apt.serviceName}</span></td>
-                          <td className="p-4 space-y-0.5">
-                            <p className="font-sans font-bold text-neutral-800">{apt.date}</p>
-                            <p className="text-[10px] font-mono text-[#d4a574] font-bold flex items-center gap-1"><Clock className="h-3 w-3" /> {apt.time}</p>
+                          <td className="p-4">
+                            <span className="bg-neutral-100 px-2.5 py-1 rounded text-[10px] font-bold text-neutral-700">{apt.treatmentName}</span>
                           </td>
-                          <td className="p-4 text-stone-700 font-serif italic">{apt.barberName}</td>
-                          <td className="p-4 font-mono font-bold text-[#1a1a1a] text-sm">${apt.price}</td>
-                          <td className="p-4"><span className={`px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider rounded-full border ${getStatusStyle(apt.status)}`}>{apt.status}</span></td>
+                          <td className="p-4 space-y-0.5">
+                            <p className="font-sans font-bold text-neutral-800">{apt.appointmentDate}</p>
+                            <p className="text-[10px] font-mono text-[#d4a574] font-bold flex items-center gap-1">
+                              <Clock className="h-3 w-3" /> {apt.appointmentTime}
+                            </p>
+                          </td>
+                          <td className="p-4 text-stone-700 font-serif italic">{apt.artisanName || '—'}</td>
+                          <td className="p-4 font-mono font-bold text-[#1a1a1a] text-sm">${apt.treatmentPrice}</td>
+                          <td className="p-4">
+                            <span className={`px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider rounded-full border ${getStatusStyle(apt.status)}`}>
+                              {apt.status}
+                            </span>
+                          </td>
                           <td className="p-4 text-right">
-                            <button onClick={() => handleOpenSheet(apt)} className="px-3 py-1.5 bg-neutral-950 hover:bg-[#d4a574] text-white hover:text-neutral-950 transition rounded text-[10px] font-bold uppercase tracking-wider">Inspect</button>
+                            <button
+                              onClick={() => handleOpenSheet(apt)}
+                              className="px-3 py-1.5 bg-neutral-950 hover:bg-[#d4a574] text-white hover:text-neutral-950 transition rounded text-[10px] font-bold uppercase tracking-wider"
+                            >
+                              Inspect
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -190,24 +225,72 @@ export default function ShopAppointmentsPage() {
       </div>
 
       {selectedApt && (
-        <div className="fixed inset-0 bg-[#1a1a1a]/85 z-50 flex justify-end backdrop-blur-xs" onClick={() => setSelectedApt(null)}>
-          <div className="w-full max-w-md bg-white h-full shadow-2xl p-6 overflow-y-auto flex flex-col justify-between text-[#1a1a1a] animate-slide-in relative" onClick={(e) => e.stopPropagation()}>
-            <button onClick={() => setSelectedApt(null)} className="absolute top-6 right-6 p-1 rounded-full bg-neutral-100 text-neutral-500 hover:text-black transition">
+        <div
+          className="fixed inset-0 bg-[#1a1a1a]/85 z-50 flex justify-end backdrop-blur-xs"
+          onClick={() => setSelectedApt(null)}
+        >
+          <div
+            className="w-full max-w-md bg-white h-full shadow-2xl p-6 overflow-y-auto flex flex-col justify-between text-[#1a1a1a] animate-slide-in relative"
+            onClick={e => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setSelectedApt(null)}
+              className="absolute top-6 right-6 p-1 rounded-full bg-neutral-100 text-neutral-500 hover:text-black transition"
+            >
               <X className="h-5 w-5" />
             </button>
 
             <div className="space-y-6">
               <div className="space-y-1">
-                <span className="text-[10px] font-mono uppercase bg-[#d4a574]/15 text-[#8b7355] font-bold py-0.5 px-2.5 rounded-full">Record #{selectedApt.id}</span>
-                <h3 className="text-2xl font-serif font-black text-neutral-950 uppercase tracking-tight mt-2">{selectedApt.customerName}</h3>
+                <span className="text-[10px] font-mono uppercase bg-[#d4a574]/15 text-[#8b7355] font-bold py-0.5 px-2.5 rounded-full">
+                  Record #{selectedApt.id.slice(0, 8)}
+                </span>
+                <h3 className="text-2xl font-serif font-black text-neutral-950 uppercase tracking-tight mt-2">
+                  {selectedApt.customerName}
+                </h3>
               </div>
 
               <div className="space-y-3">
-                <h4 className="font-serif font-bold text-xs uppercase tracking-wider text-neutral-800 border-b border-neutral-100 pb-1">Client Contacts</h4>
+                <h4 className="font-serif font-bold text-xs uppercase tracking-wider text-neutral-800 border-b border-neutral-100 pb-1">
+                  Client Contacts
+                </h4>
                 <div className="space-y-2 text-xs">
-                  <p className="flex justify-between items-center bg-neutral-50 p-2 rounded"><span className="font-semibold text-neutral-400 flex items-center gap-1.5"><User className="h-3.5 w-3.5" /> Name:</span><span className="font-serif font-bold text-neutral-950">{selectedApt.customerName}</span></p>
-                  <p className="flex justify-between items-center bg-neutral-50 p-2 rounded"><span className="font-semibold text-neutral-400 flex items-center gap-1.5"><Mail className="h-3.5 w-3.5" /> Email:</span><span className="font-mono text-neutral-950 font-medium">{selectedApt.customerEmail}</span></p>
-                  <p className="flex justify-between items-center bg-neutral-50 p-2 rounded"><span className="font-semibold text-neutral-400 flex items-center gap-1.5"><Phone className="h-3.5 w-3.5" /> Phone:</span><span className="text-neutral-950 font-serif font-bold">{selectedApt.customerPhone}</span></p>
+                  <p className="flex justify-between items-center bg-neutral-50 p-2 rounded">
+                    <span className="font-semibold text-neutral-400 flex items-center gap-1.5"><User className="h-3.5 w-3.5" /> Name:</span>
+                    <span className="font-serif font-bold text-neutral-950">{selectedApt.customerName}</span>
+                  </p>
+                  <p className="flex justify-between items-center bg-neutral-50 p-2 rounded">
+                    <span className="font-semibold text-neutral-400 flex items-center gap-1.5"><Mail className="h-3.5 w-3.5" /> Email:</span>
+                    <span className="font-mono text-neutral-950 font-medium">{selectedApt.customerEmail}</span>
+                  </p>
+                  <p className="flex justify-between items-center bg-neutral-50 p-2 rounded">
+                    <span className="font-semibold text-neutral-400 flex items-center gap-1.5"><Phone className="h-3.5 w-3.5" /> Phone:</span>
+                    <span className="text-neutral-950 font-serif font-bold">{selectedApt.customerPhone}</span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2 text-xs">
+                <h4 className="font-serif font-bold text-xs uppercase tracking-wider text-neutral-800 border-b border-neutral-100 pb-1">
+                  Appointment Details
+                </h4>
+                <div className="space-y-2">
+                  <p className="flex justify-between items-center bg-neutral-50 p-2 rounded">
+                    <span className="font-semibold text-neutral-400 text-[10px] uppercase">Treatment:</span>
+                    <span className="font-bold">{selectedApt.treatmentName}</span>
+                  </p>
+                  <p className="flex justify-between items-center bg-neutral-50 p-2 rounded">
+                    <span className="font-semibold text-neutral-400 text-[10px] uppercase">When:</span>
+                    <span className="font-bold">{selectedApt.appointmentDate} at {selectedApt.appointmentTime}</span>
+                  </p>
+                  <p className="flex justify-between items-center bg-neutral-50 p-2 rounded">
+                    <span className="font-semibold text-neutral-400 text-[10px] uppercase">Artisan:</span>
+                    <span className="italic font-bold">{selectedApt.artisanName || '—'}</span>
+                  </p>
+                  <p className="flex justify-between items-center bg-neutral-50 p-2 rounded">
+                    <span className="font-semibold text-neutral-400 text-[10px] uppercase">Charge:</span>
+                    <span className="font-mono font-bold">${selectedApt.treatmentPrice}</span>
+                  </p>
                 </div>
               </div>
 
@@ -215,17 +298,23 @@ export default function ShopAppointmentsPage() {
                 <h4 className="font-serif font-bold text-xs uppercase tracking-wider text-neutral-800 flex items-center gap-1">
                   <MessageSquare className="h-3.5 w-3.5 text-[#8b7355]" /> Staff Notes
                 </h4>
-                <textarea rows={4} value={notesDraft} onChange={(e) => setNotesDraft(e.target.value)} placeholder="Insert custom customer notes..." className="w-full border border-neutral-300 rounded p-2.5 text-xs focus:ring-1 focus:ring-[#d4a574] focus:outline-none font-medium font-sans" />
-                <button onClick={handleSaveNotes} className="px-3.5 py-1.5 bg-neutral-950 hover:bg-[#d4a574] text-white hover:text-black uppercase tracking-widest font-black rounded text-[9px] transition">Commit Notes</button>
+                <textarea
+                  rows={4}
+                  value={notesDraft}
+                  onChange={e => setNotesDraft(e.target.value)}
+                  placeholder="Insert custom customer notes..."
+                  className="w-full border border-neutral-300 rounded p-2.5 text-xs focus:ring-1 focus:ring-[#d4a574] focus:outline-none font-medium font-sans"
+                />
+                <p className="text-[10px] text-neutral-400 italic">Notes are view-only in this version.</p>
               </div>
             </div>
 
             <div className="pt-6 border-t border-neutral-150 space-y-3">
               <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Update Status:</p>
               <div className="grid grid-cols-3 gap-2 font-bold text-center text-xs">
-                <button onClick={() => handleUpdateStatus('Confirmed')} className="py-3 bg-emerald-600 text-white hover:bg-emerald-700 rounded transition">Confirm</button>
-                <button onClick={() => handleUpdateStatus('Completed')} className="py-3 bg-[#1a1a1a] text-white hover:bg-[#d4a574] hover:text-[#1a1a1a] rounded transition">Complete</button>
-                <button onClick={() => handleUpdateStatus('Cancelled')} className="py-3 bg-rose-600 text-white hover:bg-rose-700 rounded transition">Revoke</button>
+                <button onClick={() => handleUpdateStatus('CONFIRMED')} className="py-3 bg-emerald-600 text-white hover:bg-emerald-700 rounded transition">Confirm</button>
+                <button onClick={() => handleUpdateStatus('COMPLETED')} className="py-3 bg-[#1a1a1a] text-white hover:bg-[#d4a574] hover:text-[#1a1a1a] rounded transition">Complete</button>
+                <button onClick={() => handleUpdateStatus('CANCELLED')} className="py-3 bg-rose-600 text-white hover:bg-rose-700 rounded transition">Revoke</button>
               </div>
             </div>
           </div>

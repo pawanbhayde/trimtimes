@@ -49,7 +49,6 @@ export default function Sidebar() {
   } else if (isShopRoute) {
     navItems = [
       { label: 'Shop Stats', icon: LayoutDashboard, href: `/shop/${tenantId}` },
-      { label: 'Services Catalogue', icon: Scissors, href: `/shop/${tenantId}/services` },
       { label: 'Appointments Book', icon: Calendar, href: `/shop/${tenantId}/appointments` },
     ];
   } else if (isBarber) {

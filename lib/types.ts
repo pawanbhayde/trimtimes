@@ -1,7 +1,14 @@
 export interface ShopListItem {
   id: string;
   name: string;
+  slug: string;
   ownerName: string;
+  bannerUrl: string | null;
+  rating: number;
+  reviewCount: number;
+  phone: string;
+  status: 'Active' | 'Inactive';
+  schemaName: string;
 }
 
 export interface TenantInfo {
@@ -30,6 +37,7 @@ export interface CustomerUser {
 
 export interface AdminUser {
   id: string;
+  name: string;
   email: string;
   role: 'admin';
 }
