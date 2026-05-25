@@ -78,6 +78,27 @@ export const fetchArtisans = (slug: string) =>
 export const fetchReviews = (slug: string) =>
   api.get<{ reviews: Review[] }>(`/shops/${slug}/reviews`).then(r => r.data.reviews);
 
+export interface AvailableSlots {
+  slots: string[];      // HH:mm — only truly open, non-conflicting slots
+  shopClosed: boolean;  // true when the shop doesn't operate on that day
+}
+
+export const fetchAvailableSlots = (
+  slug: string,
+  date: string,
+  treatmentId: string,
+  artisanId?: string | null,
+) =>
+  api
+    .get<AvailableSlots>(`/shops/${slug}/available-slots`, {
+      params: {
+        date,
+        treatmentId,
+        ...(artisanId ? { artisanId } : {}),
+      },
+    })
+    .then((r) => r.data);
+
 // ─── Shop appointments (barber view) ─────────────────────────────────────────
 
 export interface ShopAppointment {

@@ -11,27 +11,26 @@ import {
   CheckCircle,
   AlertCircle,
 } from 'lucide-react';
-import { fetchShopProfile, fetchTreatments, fetchArtisans } from '@/lib/shopManagementApi';
-import type { ShopProfile, Treatment, Artisan } from '@/lib/shopManagementApi';
+import {
+  fetchShopProfile, fetchTreatments, fetchArtisans,
+  fetchShopHours, fetchAvailableSlots,
+} from '@/lib/shopManagementApi';
+import type { ShopProfile, Treatment, Artisan, DayHours } from '@/lib/shopManagementApi';
 import { bookAppointment } from '@/lib/appointmentApi';
 import { useAuth } from '@/lib/authStore';
 
-const HOUR_SLOTS = [
-  '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
-  '13:00', '13:30', '14:00', '14:30', '15:00', '15:30',
-  '16:00', '16:30', '17:00',
-];
-
-function buildDates() {
-  const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+/** Build the next 14 calendar dates; mark closed days from shop hours. */
+function buildDates(closedDayNames: Set<string>) {
+  const SHORT  = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const FULL   = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const list: { label: string; dateStr: string; disabled: boolean }[] = [];
   const now = new Date();
-  for (let i = 0; list.length < 10; i++) {
+  for (let i = 0; i < 14; i++) {
     const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
     list.push({
-      label: `${weekdays[d.getDay()]} ${d.getDate()}`,
+      label:   `${SHORT[d.getDay()]} ${d.getDate()}`,
       dateStr: d.toISOString().split('T')[0],
-      disabled: d.getDay() === 0,
+      disabled: closedDayNames.has(FULL[d.getDay()]),
     });
   }
   return list;
@@ -48,33 +47,48 @@ export default function CustomerBookingPage() {
   const [shop, setShop] = useState<ShopProfile | null>(null);
   const [treatments, setTreatments] = useState<Treatment[]>([]);
   const [artisans, setArtisans] = useState<Artisan[]>([]);
+  const [shopHours, setShopHours] = useState<DayHours[]>([]);
   const [loadError, setLoadError] = useState(false);
 
   const [step, setStep] = useState(1);
   const [selectedTreatment, setSelectedTreatment] = useState<Treatment | null>(null);
   const [selectedArtisan, setSelectedArtisan] = useState<Artisan | null>(null);
   const [selectedDate, setSelectedDate] = useState('');
-  const [selectedTime, setSelectedTime] = useState('09:00');
+  const [selectedTime, setSelectedTime] = useState('');
   const [notes, setNotes] = useState('');
+
+  // Availability state
+  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [shopClosed, setShopClosed] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [successModal, setSuccessModal] = useState(false);
   const [bookedId, setBookedId] = useState('');
 
-  const dates = buildDates();
+  // Closed day names set — derived from shopHours so buildDates can disable them
+  const closedDayNames = new Set(
+    shopHours.filter((h) => !h.isOpen).map((h) => h.day as string),
+  );
+  const dates = buildDates(closedDayNames);
 
+  // ── Initial data load ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!slug) return;
     Promise.all([
       fetchShopProfile(slug),
       fetchTreatments(slug),
       fetchArtisans(slug),
+      fetchShopHours(slug),
     ])
-      .then(([shopData, txList, artisanList]) => {
+      .then(([shopData, txList, artisanList, hours]) => {
         setShop(shopData);
+        setShopHours(hours);
+
         const active = txList.filter((t) => t.status === 'Active');
         setTreatments(active);
+
         const activeArtisans = artisanList.filter((a) => a.isActive);
         setArtisans(activeArtisans);
         if (activeArtisans.length > 0) setSelectedArtisan(activeArtisans[0]);
@@ -84,11 +98,52 @@ export default function CustomerBookingPage() {
           const pre = active.find((t) => t.id === preId);
           if (pre) { setSelectedTreatment(pre); setStep(2); }
         }
-        const first = dates.find((d) => !d.disabled);
-        if (first) setSelectedDate(first.dateStr);
+
+        // Pick the first open day as the default selected date
+        const closedSet = new Set(hours.filter((h) => !h.isOpen).map((h) => h.day as string));
+        const FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const now = new Date();
+        for (let i = 0; i < 14; i++) {
+          const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
+          if (!closedSet.has(FULL[d.getDay()])) {
+            setSelectedDate(d.toISOString().split('T')[0]);
+            break;
+          }
+        }
       })
       .catch(() => setLoadError(true));
   }, [slug]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Fetch available slots whenever date / artisan / treatment changes ────────
+  useEffect(() => {
+    if (!slug || !selectedDate || !selectedTreatment) {
+      setAvailableSlots([]);
+      setShopClosed(false);
+      return;
+    }
+
+    let cancelled = false;
+    setSlotsLoading(true);
+    setAvailableSlots([]);
+    setSelectedTime('');
+
+    fetchAvailableSlots(slug, selectedDate, selectedTreatment.id, selectedArtisan?.id)
+      .then((result) => {
+        if (cancelled) return;
+        setShopClosed(result.shopClosed);
+        setAvailableSlots(result.slots);
+        // Auto-select first available slot
+        if (result.slots.length > 0) setSelectedTime(result.slots[0]);
+      })
+      .catch(() => {
+        if (!cancelled) setAvailableSlots([]);
+      })
+      .finally(() => {
+        if (!cancelled) setSlotsLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [slug, selectedDate, selectedTreatment?.id, selectedArtisan?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -284,30 +339,71 @@ export default function CustomerBookingPage() {
                       type="button"
                       disabled={d.disabled}
                       onClick={() => setSelectedDate(d.dateStr)}
-                      className={`flex-1 min-w-[70px] aspect-square p-2 border rounded-sm flex flex-col items-center justify-center transition-all ${d.disabled ? 'bg-neutral-50 text-neutral-300 border-neutral-100 cursor-not-allowed opacity-50' : selectedDate === d.dateStr ? 'bg-[#1a1a1a] text-[#d4a574] border-[#d4a574] shadow' : 'bg-white text-neutral-700 border-neutral-100 hover:border-[#d4a574]/60'}`}
+                      className={`flex-shrink-0 min-w-[70px] aspect-square p-2 border rounded-sm flex flex-col items-center justify-center transition-all ${
+                        d.disabled
+                          ? 'bg-neutral-50 text-neutral-300 border-neutral-100 cursor-not-allowed opacity-50'
+                          : selectedDate === d.dateStr
+                          ? 'bg-[#1a1a1a] text-[#d4a574] border-[#d4a574] shadow'
+                          : 'bg-white text-neutral-700 border-neutral-100 hover:border-[#d4a574]/60'
+                      }`}
+                      title={d.disabled ? 'Shop closed' : undefined}
                     >
                       <span className="text-[10px] font-mono font-bold uppercase leading-none">{d.label.split(' ')[0]}</span>
                       <span className="text-base font-serif font-black mt-1 leading-none">{d.label.split(' ')[1]}</span>
+                      {d.disabled && (
+                        <span className="text-[8px] font-mono text-neutral-300 mt-0.5 leading-none">Closed</span>
+                      )}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Time select */}
+              {/* Time slot select — driven by real availability */}
               <div className="space-y-3">
-                <p className="text-xs font-bold uppercase tracking-widest text-[#8b7355]">{artisans.length > 0 ? '3.' : '2.'} Select Time Slot</p>
-                <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
-                  {HOUR_SLOTS.map((slot) => (
-                    <button
-                      key={slot}
-                      type="button"
-                      onClick={() => setSelectedTime(slot)}
-                      className={`py-3.5 px-2 border rounded-sm text-center font-bold tracking-widest text-xs transition font-mono ${selectedTime === slot ? 'bg-[#d4a574] text-neutral-900 border-[#d4a574] shadow' : 'bg-white text-neutral-800 border-neutral-100 hover:border-[#d4a574]'}`}
-                    >
-                      {slot}
-                    </button>
-                  ))}
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold uppercase tracking-widest text-[#8b7355]">
+                    {artisans.length > 0 ? '3.' : '2.'} Select Time Slot
+                  </p>
+                  {selectedDate && !slotsLoading && !shopClosed && (
+                    <span className="text-[10px] font-mono text-neutral-400">
+                      {availableSlots.length} slot{availableSlots.length !== 1 ? 's' : ''} available
+                    </span>
+                  )}
                 </div>
+
+                {slotsLoading ? (
+                  <div className="flex items-center gap-2 py-4 text-xs text-neutral-400">
+                    <div className="h-4 w-4 border-2 border-[#d4a574] border-t-transparent rounded-full animate-spin shrink-0" />
+                    Checking availability…
+                  </div>
+                ) : shopClosed ? (
+                  <div className="py-4 px-3 bg-neutral-50 border border-neutral-200 rounded-sm text-xs text-neutral-500 font-mono text-center">
+                    🚫 Shop is closed on this day
+                  </div>
+                ) : availableSlots.length === 0 ? (
+                  <div className="py-4 px-3 bg-amber-50 border border-amber-200 rounded-sm text-xs text-amber-700 font-mono text-center">
+                    {selectedTreatment
+                      ? 'No available slots for this day — try another date or artisan'
+                      : 'Select a treatment first'}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+                    {availableSlots.map((slot) => (
+                      <button
+                        key={slot}
+                        type="button"
+                        onClick={() => setSelectedTime(slot)}
+                        className={`py-3.5 px-2 border rounded-sm text-center font-bold tracking-widest text-xs transition font-mono ${
+                          selectedTime === slot
+                            ? 'bg-[#d4a574] text-neutral-900 border-[#d4a574] shadow'
+                            : 'bg-white text-neutral-800 border-neutral-100 hover:border-[#d4a574]'
+                        }`}
+                      >
+                        {slot}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -316,9 +412,9 @@ export default function CustomerBookingPage() {
                 Prev: Treatments
               </button>
               <button
-                disabled={!selectedDate || !selectedTime}
+                disabled={!selectedDate || !selectedTime || slotsLoading || shopClosed}
                 onClick={() => setStep(3)}
-                className="px-6 py-3 bg-[#1a1a1a] text-white hover:bg-[#d4a574] hover:text-[#1a1a1a] font-bold text-xs uppercase tracking-wider rounded-sm transition flex items-center gap-2"
+                className="px-6 py-3 bg-[#1a1a1a] text-white hover:bg-[#d4a574] hover:text-[#1a1a1a] font-bold text-xs uppercase tracking-wider rounded-sm transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Confirm Details <ArrowRight className="h-4 w-4" />
               </button>
