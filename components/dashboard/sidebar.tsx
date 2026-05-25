@@ -18,6 +18,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/authStore';
 import { logout } from '@/lib/authApi';
+import { clearAdminToken } from '@/lib/adminApi';
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -71,6 +72,11 @@ export default function Sidebar() {
   }
 
   const handleLogout = async () => {
+    if (isSuperAdmin) {
+      clearAdminToken();
+      router.push('/admin/login');
+      return;
+    }
     try {
       await logout();
     } finally {
@@ -152,28 +158,37 @@ export default function Sidebar() {
 
       {/* User + Logout */}
       <div className="p-4 border-t border-[#d4a574]/15 bg-black/15">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3 overflow-hidden flex-1 p-1.5">
-            <div className="h-9 w-9 rounded-sm bg-[#d4a574]/15 border border-[#d4a574]/30 flex items-center justify-center text-[#d4a574] shrink-0 font-bold text-xs">
-              {user?.name?.slice(0, 2).toUpperCase() ?? '??'}
-            </div>
-            {!collapsed && (
+        {collapsed ? (
+          // Collapsed: show only logout icon centered
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center p-2 text-white/40 hover:text-red-400 transition rounded-sm hover:bg-red-500/10"
+            title="Sign Out"
+            id="sidebar-logout-btn-collapsed"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+        ) : (
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3 overflow-hidden flex-1 p-1.5">
+              <div className="h-9 w-9 rounded-sm bg-[#d4a574]/15 border border-[#d4a574]/30 flex items-center justify-center text-[#d4a574] shrink-0 font-bold text-xs">
+                {user?.name?.slice(0, 2).toUpperCase() ?? '??'}
+              </div>
               <div className="truncate flex-1">
                 <p className="text-xs font-bold text-white truncate leading-tight uppercase tracking-wider">{user?.name}</p>
                 <p className="text-[9px] text-white/40 truncate leading-none mt-1">{user?.email}</p>
               </div>
-            )}
-          </div>
-          {!collapsed && (
+            </div>
             <button
               onClick={handleLogout}
-              className="text-white/40 hover:text-red-400 transition p-1.5 rounded-sm ml-1"
+              className="text-white/40 hover:text-red-400 transition p-1.5 rounded-sm ml-1 hover:bg-red-500/10"
               title="Sign Out"
+              id="sidebar-logout-btn"
             >
               <LogOut className="h-4 w-4" />
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </aside>
   );

@@ -1,20 +1,43 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Scissors, Lock, Mail, ArrowRight, ShieldCheck, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/lib/authStore';
 import { userLogin } from '@/lib/userApi';
+import { getAdminToken } from '@/lib/adminApi';
+import type { CustomerUser } from '@/lib/types';
 
 export default function UserLoginPage() {
   const router = useRouter();
-  const { setSession } = useAuth();
+  const { setSession, accessToken, user, tenant } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
+
+  // ── Session guard: redirect if already logged in ──
+  useEffect(() => {
+    if (getAdminToken()) {
+      setRedirecting(true);
+      router.replace('/admin/dashboard');
+      return;
+    }
+    if (accessToken && tenant) {
+      setRedirecting(true);
+      router.replace(`/shop/${tenant.id}`);
+      return;
+    }
+    if (accessToken && user && user.role === 'customer') {
+      setRedirecting(true);
+      const uid = (user as CustomerUser).email.split('@')[0];
+      router.replace(`/user/${uid}`);
+      return;
+    }
+  }, [accessToken, tenant, user, router]);
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,6 +60,15 @@ export default function UserLoginPage() {
       setLoading(false);
     }
   };
+
+  if (redirecting) {
+    return (
+      <div className="min-h-screen bg-[#1a1a1a] flex items-center justify-center flex-col gap-4">
+        <div className="h-8 w-8 border-2 border-[#d4a574] border-t-transparent rounded-sm animate-spin" />
+        <p className="text-[10px] font-mono uppercase tracking-widest text-[#8b7355]">Restoring session...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen grid lg:grid-cols-12 bg-[#fafaf9] font-sans" id="user-login-page">

@@ -2,12 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, usePathname, useParams } from 'next/navigation';
-import { 
-  Bell, 
-  Menu, 
-  User, 
-  LogOut, 
-  CheckCircle, 
+import {
+  Bell,
+  Menu,
+  User,
+  LogOut,
+  CheckCircle,
   Calendar,
   AlertCircle,
   Scissors,
@@ -17,6 +17,9 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getCurrentUser, getTenants, Tenant } from '@/lib/storage';
+import { useAuth } from '@/lib/authStore';
+import { logout } from '@/lib/authApi';
+import { clearAdminToken } from '@/lib/adminApi';
 
 export default function Topbar() {
   const router = useRouter();
@@ -28,6 +31,24 @@ export default function Topbar() {
 
   const currentUser = getCurrentUser();
   const tenantId = params?.tenant as string;
+  const { clearSession } = useAuth();
+  const isSuperAdmin = pathname?.startsWith('/admin');
+
+  const handleLogout = async () => {
+    setMobileMenuOpen(false);
+    if (isSuperAdmin) {
+      clearAdminToken();
+      router.push('/admin/login');
+      return;
+    }
+    try {
+      await logout();
+    } finally {
+      clearSession();
+      document.cookie = 'tt_session=; path=/; max-age=0';
+      router.push('/login');
+    }
+  };
 
   useEffect(() => {
     if (tenantId) {
@@ -170,6 +191,15 @@ export default function Topbar() {
           <div className="h-9 w-9 rounded-sm bg-[#1a1a1a] text-white flex items-center justify-center text-xs font-extrabold ring-1 ring-[#d4a574]/30 shrink-0">
             {currentUser?.name?.slice(0, 2).toUpperCase()}
           </div>
+          {/* Logout Button */}
+          <button
+            onClick={handleLogout}
+            className="p-2 text-neutral-400 hover:text-red-500 hover:bg-red-50 transition rounded-sm"
+            title="Sign Out"
+            id="topbar-logout-btn"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
         </div>
       </div>
 
@@ -208,7 +238,7 @@ export default function Topbar() {
               <button onClick={() => { router.push('/admin/tenants'); setMobileMenuOpen(false); }} className="w-full text-left py-2.5 text-sm text-neutral-300 hover:text-[#d4a574] border-b border-neutral-800/50 block">Tenant Registry</button>
             </div>
 
-            <div className="pt-4 border-t border-neutral-800">
+            <div className="pt-4 border-t border-neutral-800 space-y-3">
               <div className="flex items-center gap-3">
                 <div className="h-8 w-8 rounded-full bg-amber-500/20 text-amber-500 font-bold flex items-center justify-center text-xs">
                   {currentUser?.name?.slice(0, 2).toUpperCase()}
@@ -218,6 +248,14 @@ export default function Topbar() {
                   <p className="text-[10px] text-gray-500">{currentUser?.email}</p>
                 </div>
               </div>
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center gap-2.5 py-2.5 px-3 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 transition rounded-sm font-bold uppercase tracking-wider"
+                id="mobile-logout-btn"
+              >
+                <LogOut className="h-4 w-4" />
+                Sign Out
+              </button>
             </div>
           </div>
         </div>

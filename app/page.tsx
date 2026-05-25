@@ -14,14 +14,36 @@ import {
   Star,
   AlertCircle,
   RefreshCw,
+  LayoutDashboard,
 } from "lucide-react";
 import { fetchShops } from "@/lib/shopApi";
-import type { ShopListItem } from "@/lib/types";
+import { useAuth } from "@/lib/authStore";
+import { getAdminToken } from "@/lib/adminApi";
+import type { ShopListItem, CustomerUser } from "@/lib/types";
 
 export default function PlatformLandingPage() {
   const [shops, setShops] = useState<ShopListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+
+  const { accessToken, user, tenant } = useAuth();
+
+  // Resolve which dashboard to link to for the current session
+  const getDashboardLink = (): { href: string; label: string } | null => {
+    if (typeof window !== 'undefined' && getAdminToken()) {
+      return { href: '/admin/dashboard', label: 'Admin Panel' };
+    }
+    if (accessToken && tenant) {
+      return { href: `/shop/${tenant.id}`, label: 'Shop Dashboard' };
+    }
+    if (accessToken && user && user.role === 'customer') {
+      const uid = (user as CustomerUser).email.split('@')[0];
+      return { href: `/user/${uid}`, label: 'My Dashboard' };
+    }
+    return null;
+  };
+
+  const dashboardLink = getDashboardLink();
 
   const loadShops = () => {
     setLoading(true);
@@ -79,20 +101,35 @@ export default function PlatformLandingPage() {
           </div>
 
           <div className="flex items-center gap-3">
-            <Link
-              href="/user/login"
-              className="px-4 py-2 text-xs tracking-wider uppercase font-bold text-neutral-300 hover:text-white border border-white/20 hover:border-white/40 transition rounded"
-              id="customer-login-nav-btn"
-            >
-              Customer Login
-            </Link>
-            <Link
-              href="/login"
-              className="px-4 py-2 text-xs tracking-wider uppercase font-bold text-neutral-300 hover:text-white border border-white/20 hover:border-white/40 transition rounded"
-              id="shop-login-nav-btn"
-            >
-              Shop Login
-            </Link>
+            {dashboardLink ? (
+              // Already logged in — show single "Go to Dashboard" button
+              <Link
+                href={dashboardLink.href}
+                className="flex items-center gap-2 px-4 py-2 text-xs tracking-wider uppercase font-bold bg-[#d4a574] text-[#1a1a1a] hover:bg-white transition rounded"
+                id="dashboard-nav-btn"
+              >
+                <LayoutDashboard className="h-3.5 w-3.5" />
+                {dashboardLink.label}
+              </Link>
+            ) : (
+              // Not logged in — show both login options
+              <>
+                <Link
+                  href="/user/login"
+                  className="px-4 py-2 text-xs tracking-wider uppercase font-bold text-neutral-300 hover:text-white border border-white/20 hover:border-white/40 transition rounded"
+                  id="customer-login-nav-btn"
+                >
+                  Customer Login
+                </Link>
+                <Link
+                  href="/login"
+                  className="px-4 py-2 text-xs tracking-wider uppercase font-bold text-neutral-300 hover:text-white border border-white/20 hover:border-white/40 transition rounded"
+                  id="shop-login-nav-btn"
+                >
+                  Shop Login
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </nav>
